@@ -18,11 +18,6 @@
 #include "parser.h"
 #include "ast.h"
 
-void initialize_llvm() {
-  LLVMLinkInJIT();
-  LLVMInitializeNativeTarget();
-}
-
 void execute(LLVMModuleRef mod) {
   LLVMExecutionEngineRef engine;
   LLVMModuleProviderRef provider = LLVMCreateModuleProviderForExistingModule(mod);
@@ -57,7 +52,8 @@ void execute(LLVMModuleRef mod) {
 
 int main(int argc, char const *argv[])
 {
-  initialize_llvm();
+  LLVMLinkInJIT();
+  LLVMInitializeNativeTarget();
 
   expr_node_t* ast = parse_file(stdin);
   if (!ast) {
