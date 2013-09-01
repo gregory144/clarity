@@ -45,13 +45,8 @@ LLVMValueRef codegen_ident(LLVMBuilderRef builder, ident_node_t* node) {
 
 LLVMValueRef codegen_var_decl(LLVMBuilderRef builder, var_decl_node_t* node) {
   LLVMValueRef alloca = LLVMBuildAlloca(builder, LLVMInt32Type(), node->name);
-  LLVMValueRef value;
-  if (node->rhs) {
-    value = codegen_expr(builder, node->rhs);
-    if (value == NULL) return NULL;
-  } else {
-    value = LLVMConstInt(LLVMInt32Type(), 0, 0);
-  }
+  LLVMValueRef value = codegen_expr(builder, node->rhs);
+  if (value == NULL) return NULL;
   LLVMBuildStore(builder, value, alloca);
   set_symbol(node->name, alloca);
   return value;

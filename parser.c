@@ -215,11 +215,12 @@ expr_node_t* parse_expression_secondary(tokenizer_t *tok) {
     }
     char* ident = strdup(tok->ident);
     get_tok_next(tok);
-    expr_node_t* rhs = NULL;
-    if (tok->current_tok == TOKEN_EQUAL) {
-      get_tok_next(tok);
-      rhs = parse_expression_primary(tok, 0);
+    if (!expect(tok, TOKEN_EQUAL, "assignment")) {
+      return NULL;
     }
+    get_tok_next(tok);
+    expr_node_t* rhs = parse_expression_primary(tok, 0);
+    if (!rhs) return NULL;
     expr_node_t* var_decl_node = (expr_node_t*)init_var_decl_node(ident, rhs);
     return var_decl_node;
   }
@@ -264,6 +265,7 @@ expr_node_t* parse_expression_list(tokenizer_t *tok) {
   expr_list_node_t* expr_list = NULL;
   while (tok->current_tok != TOKEN_EOF) {
     expr_node_t* next_expr = parse_expression(tok);
+    if (!next_expr) return NULL;
     expr_list = (expr_list_node_t*)init_expr_list_node(expr_list, next_expr);
     if (tok->current_tok != TOKEN_SEMI && tok->current_tok != TOKEN_EOF) {
       expect(tok, 0, "; or EOF");
