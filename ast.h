@@ -8,11 +8,13 @@
 typedef struct {
   int node_type;
   void* codegen_fun;
+  expr_type_t type;
 } expr_node_t;
 
 typedef struct expr_list_node_t {
   int node_type;
   void* codegen_fun;
+  expr_type_t type;
   expr_node_t* expr;
   struct expr_list_node_t* next;
 } expr_list_node_t;
@@ -20,18 +22,28 @@ typedef struct expr_list_node_t {
 typedef struct {
   int node_type;
   void* codegen_fun;
-  int val;
+  expr_type_t type;
+  long val;
 } const_int_node_t;
 
 typedef struct {
   int node_type;
   void* codegen_fun;
+  expr_type_t type;
+  double val;
+} const_float_node_t;
+
+typedef struct {
+  int node_type;
+  void* codegen_fun;
+  expr_type_t type;
   char* name;
 } ident_node_t;
 
 typedef struct {
   int node_type;
   void* codegen_fun;
+  expr_type_t type;
   char* name;
   expr_node_t* rhs;
 } var_decl_node_t;
@@ -39,6 +51,7 @@ typedef struct {
 typedef struct {
   int node_type;
   void* codegen_fun;
+  expr_type_t type;
   unary_op_t op;
   expr_node_t *rhs;
 } unary_op_node_t;
@@ -46,13 +59,16 @@ typedef struct {
 typedef struct {
   int node_type;
   void* codegen_fun;
+  expr_type_t type;
   bin_op_t op;
   expr_node_t *lhs, *rhs;
 } bin_op_node_t;
 
 expr_list_node_t* init_expr_list_node(expr_list_node_t* old_list, expr_node_t* new_expr);
 
-const_int_node_t* init_const_int_node(int val);
+const_int_node_t* init_const_int_node(long val);
+
+const_float_node_t* init_const_float_node(double val);
 
 ident_node_t* init_ident_node(char* name);
 

@@ -10,7 +10,8 @@ typedef struct {
   FILE* input;
   token_t current_tok;
   char ident[512];
-  int int_val;
+  long int_val;
+  double float_val;
 } tokenizer_t;
 
 char* token_to_string(tokenizer_t* tokenizer);

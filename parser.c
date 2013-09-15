@@ -64,7 +64,10 @@ char* token_to_string(tokenizer_t* tokenizer) {
   char* buf = malloc(sizeof(char) * 512);
   switch(tokenizer->current_tok) {
     case TOKEN_INTEGER:
-      sprintf(buf, "%d", tokenizer->int_val);
+      sprintf(buf, "%ld", tokenizer->int_val);
+      break;
+    case TOKEN_FLOAT:
+      sprintf(buf, "%f", tokenizer->float_val);
       break;
     case TOKEN_IDENT:
       sprintf(buf, "%s", tokenizer->ident);
@@ -131,13 +134,20 @@ if (strcmp(tok->ident, s) == 0) return ret
   } else if (isdigit(c) || c == '.') { // number
     char* ident = tok->ident;
 		ident[i = 0] = c;
+    bool is_float = ident[i] == '.';
 		while (isdigit(ident[++i] = fgetc(tok->input))
-				|| ident[i] == '.')
-			;
+				|| ident[i] == '.') {
+      is_float = is_float || ident[i] == '.';
+    }
 		c = ident[i];
 		ident[i] = '\0';
-		tok->int_val = strtod(ident, NULL);
-		return TOKEN_INTEGER;
+    if (is_float) {
+      tok->float_val = strtod(ident, NULL);
+      return TOKEN_FLOAT;
+    } else {
+      tok->int_val = strtol(ident, NULL, 10);
+      return TOKEN_INTEGER;
+    }
 	} else if (c == '#') { // comment
 		while ((c = fgetc(tok->input)) != EOF && c != '\r' && c != '\n')
 			;
@@ -203,9 +213,14 @@ expr_node_t* parse_expression_secondary(tokenizer_t *tok) {
     expr_node_t* int_node = (expr_node_t*)init_const_int_node(tok->int_val);
     get_tok_next(tok);
     return int_node;
+  } else if (tok->current_tok == TOKEN_FLOAT) {
+    expr_node_t* float_node = (expr_node_t*)init_const_float_node(tok->float_val);
+    get_tok_next(tok);
+    return float_node;
   } else if (tok->current_tok == TOKEN_IDENT) {
     char* ident = strdup(tok->ident);
     expr_node_t* ident_node = (expr_node_t*)init_ident_node(ident);
+    if (!ident_node) return NULL;
     get_tok_next(tok);
     return ident_node;
   } else if (tok->current_tok == TOKEN_VAR_DECL) {
@@ -222,6 +237,7 @@ expr_node_t* parse_expression_secondary(tokenizer_t *tok) {
     expr_node_t* rhs = parse_expression_primary(tok, 0);
     if (!rhs) return NULL;
     expr_node_t* var_decl_node = (expr_node_t*)init_var_decl_node(ident, rhs);
+    set_symbol(ident, rhs->type);
     return var_decl_node;
   }
   expect(tok, 0, "unary op, '(', var declaration, identifier or an integer");
@@ -240,10 +256,9 @@ expr_node_t* parse_expression_primary(tokenizer_t *tok, int prec) {
     int new_prec = left_associative(bin_op) ? op_prec + 1 : op_prec;
     get_tok_next(tok);
     expr_node_t* rhs = parse_expression_primary(tok, new_prec);
-    if (!rhs) {
-      return NULL;
-    }
+    if (!rhs) return NULL;
     lhs = (expr_node_t*)init_bin_op_node(bin_op, lhs, rhs);
+    if (!lhs) return NULL;
     bin_op = token_to_bin_op(tok->current_tok);
     if (bin_op != BIN_OP_INVALID) op_prec = binary_precedence(bin_op);
   }

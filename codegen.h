@@ -14,6 +14,8 @@ LLVMValueRef codegen_expr_list(LLVMBuilderRef builder, expr_list_node_t* node);
 
 LLVMValueRef codegen_const_int(LLVMBuilderRef builder, const_int_node_t* node);
 
+LLVMValueRef codegen_const_float(LLVMBuilderRef builder, const_float_node_t* node);
+
 LLVMValueRef codegen_ident(LLVMBuilderRef builder, ident_node_t* node);
 
 LLVMValueRef codegen_var_decl(LLVMBuilderRef builder, var_decl_node_t* node);

@@ -9,7 +9,13 @@ symbol_t* symbols;
 
 symbol_t* get_symbol(char* name) {
   symbol_t* curr = symbols;
-    while (curr) {
+  while (curr) {
+    if (name != NULL && curr->name != NULL) {
+      printf("%s\n", curr->name);
+      printf("%s\n", name);
+      printf("getting symbol '%s', comparing to '%s'\n", name, curr->name);
+    } else
+      printf("current symbol has no name\n");
     if (strcmp(curr->name, name) == 0) {
       return curr;
     }
@@ -18,10 +24,11 @@ symbol_t* get_symbol(char* name) {
   return NULL;
 }
 
-symbol_t* set_symbol(char* name, LLVMValueRef value) {
+symbol_t* set_symbol(char* name, expr_type_t type) {
   symbol_t* new_symbol = (symbol_t*)malloc(sizeof(symbol_t));
   new_symbol->name = name;
-  new_symbol->value = value;
+  new_symbol->type = type;
+  new_symbol->value = NULL;
   new_symbol->next = symbols;
   symbols = new_symbol;
   return new_symbol;

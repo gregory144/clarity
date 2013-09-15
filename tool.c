@@ -31,20 +31,32 @@ void execute(LLVMModuleRef mod) {
   LLVMPassManagerRef pass = LLVMCreatePassManager();
   LLVMAddTargetData(LLVMGetExecutionEngineTargetData(engine), pass);
 
-  /*LLVMAddConstantPropagationPass(pass);*/
-  /*LLVMAddInstructionCombiningPass(pass);*/
-  /*LLVMAddPromoteMemoryToRegisterPass(pass);*/
-  /*LLVMAddGVNPass(pass);*/
-  /*LLVMAddCFGSimplificationPass(pass);*/
+  LLVMAddConstantPropagationPass(pass);
+  LLVMAddInstructionCombiningPass(pass);
+  LLVMAddPromoteMemoryToRegisterPass(pass);
+  LLVMAddGVNPass(pass);
+  LLVMAddCFGSimplificationPass(pass);
 
   LLVMRunPassManager(pass, mod);
   LLVMDumpModule(mod);
 
   LLVMValueRef main_func = LLVMGetNamedFunction(mod, "main");
+
   LLVMGenericValueRef exec_args[] = {};
   LLVMGenericValueRef exec_res = LLVMRunFunction(engine, main_func, 0, exec_args);
+
+  LLVMTypeRef ret_type = LLVMGetReturnType(LLVMGetElementType(LLVMTypeOf(main_func)));
+  LLVMTypeKind ret_type_kind = LLVMGetTypeKind(ret_type);
+
+  fprintf(stderr, "\nResult: ");
+  if (ret_type_kind == LLVMIntegerTypeKind) {
+    int64_t ret_int = LLVMGenericValueToInt(exec_res, true);
+    fprintf(stderr, "%ld", ret_int);
+  } else if (ret_type_kind == LLVMDoubleTypeKind) {
+    double ret_double = LLVMGenericValueToFloat(LLVMDoubleType(), exec_res);
+    fprintf(stderr, "%f", ret_double);
+  }
   fprintf(stderr, "\n");
-  fprintf(stderr, "; Result: %llu\n", LLVMGenericValueToInt(exec_res, 0));
 
   LLVMDisposePassManager(pass);
   LLVMDisposeExecutionEngine(engine);
