@@ -8,6 +8,7 @@
 #include "codegen.h"
 #include "ast.h"
 #include "parser.h"
+#include "symbols.h"
 
 bin_op_t token_to_bin_op(token_t tok) {
   switch(tok) {
