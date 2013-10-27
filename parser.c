@@ -10,6 +10,8 @@
 #include "parser.h"
 #include "symbols.h"
 
+expr_list_node_t* parse_expression_list(tokenizer_t *tok);
+
 bin_op_t token_to_bin_op(token_t tok) {
   switch(tok) {
     case TOKEN_PLUS: return BIN_OP_PLUS;
@@ -61,7 +63,7 @@ int unary_precedence(unary_op_t op) {
   }
 }
 
-char* token_to_string(tokenizer_t* tokenizer) {
+char* next_token_to_string(tokenizer_t* tokenizer) {
   char* buf = malloc(sizeof(char) * 512);
   switch(tokenizer->current_tok) {
     case TOKEN_INTEGER:
@@ -73,41 +75,8 @@ char* token_to_string(tokenizer_t* tokenizer) {
     case TOKEN_IDENT:
       sprintf(buf, "%s", tokenizer->ident);
       break;
-    case TOKEN_VAR_DECL:
-      sprintf(buf, "var");
-      break;
-    case TOKEN_EOF:
-      sprintf(buf, "EOF");
-      break;
-    case TOKEN_PLUS:
-      sprintf(buf, "+");
-      break;
-    case TOKEN_DASH:
-      sprintf(buf, "-");
-      break;
-    case TOKEN_STAR:
-      sprintf(buf, "*");
-      break;
-    case TOKEN_FORWARD_SLASH:
-      sprintf(buf, "/");
-      break;
-    case TOKEN_PERCENT:
-      sprintf(buf, "%%");
-      break;
-    case TOKEN_EQUAL:
-      sprintf(buf, "=");
-      break;
-    case TOKEN_OPEN_PAREN:
-      sprintf(buf, "(");
-      break;
-    case TOKEN_CLOSE_PAREN:
-      sprintf(buf, ")");
-      break;
-    case TOKEN_SEMI:
-      sprintf(buf, ";");
-      break;
-    case TOKEN_INVALID:
-      sprintf(buf, "invalid token");
+    default:
+      sprintf(buf, "%s", token_to_string(tokenizer->current_tok));
       break;
   }
   return buf;
@@ -173,6 +142,8 @@ if (strcmp(tok->ident, s) == 0) return ret
     case '=': return TOKEN_EQUAL;
     case '(': return TOKEN_OPEN_PAREN;
     case ')': return TOKEN_CLOSE_PAREN;
+    case '{': return TOKEN_OPEN_BRACE;
+    case '}': return TOKEN_CLOSE_BRACE;
     case ';': return TOKEN_SEMI;
   }
   fprintf(stderr, "Unreconized character: %c\n", i);
@@ -185,7 +156,7 @@ token_t get_tok_next(tokenizer_t* tok) {
 
 bool expect(tokenizer_t *tok, token_t expected, char* expected_s) {
   if (!expected || tok->current_tok != expected) {
-    char* tok_s = token_to_string(tok);
+    char* tok_s = next_token_to_string(tok);
     fprintf(stderr, "Expected: %s, got: %s\n", expected_s, tok_s);
     free(tok_s);
     return false;
@@ -219,11 +190,22 @@ expr_node_t* parse_expression_secondary(tokenizer_t *tok) {
     get_tok_next(tok);
     return float_node;
   } else if (tok->current_tok == TOKEN_IDENT) {
+    expr_node_t* node;
     char* ident = strdup(tok->ident);
-    expr_node_t* ident_node = (expr_node_t*)init_ident_node(ident);
-    if (!ident_node) return NULL;
     get_tok_next(tok);
-    return ident_node;
+    if (tok->current_tok == TOKEN_OPEN_PAREN) {
+      // this is a function call
+      get_tok_next(tok);
+      if (!expect(tok, TOKEN_CLOSE_PAREN, "')'")) {
+        return NULL;
+      }
+      get_tok_next(tok);
+      node = (expr_node_t*)init_fun_call_node(ident);
+    } else {
+      node = (expr_node_t*)init_ident_node(ident);
+      if (!node) return NULL;
+    }
+    return node;
   } else if (tok->current_tok == TOKEN_VAR_DECL) {
     get_tok_next(tok);
     if (!expect(tok, TOKEN_IDENT, "identifier")) {
@@ -238,10 +220,32 @@ expr_node_t* parse_expression_secondary(tokenizer_t *tok) {
     expr_node_t* rhs = parse_expression_primary(tok, 0);
     if (!rhs) return NULL;
     expr_node_t* var_decl_node = (expr_node_t*)init_var_decl_node(ident, rhs);
-    set_symbol(ident, rhs->type);
+    printf("declaring %s as a %s\n", ident, type_to_string(rhs->type));
+    symbol_t* symbol = set_symbol(ident, rhs->type);
+    if (rhs->type == EXPR_TYPE_FUN) {
+      block_node_t* block = (block_node_t*)rhs;
+      symbol->ret_type = block->body->type;
+    }
     return var_decl_node;
+  } else if (tok->current_tok == TOKEN_OPEN_BRACE) {
+    get_tok_next(tok);
+    // TODO - arguments
+    /*if (!expect(tok, TOKEN_OPEN_PAREN, "(")) {*/
+      /*return NULL;*/
+    /*}*/
+    /*get_tok_next(tok);*/
+    /*if (!expect(tok, TOKEN_CLOSE_PAREN, ")")) {*/
+      /*return NULL;*/
+    /*}*/
+    /*get_tok_next(tok);*/
+    expr_list_node_t* function_body = parse_expression_list(tok);
+    if (!expect(tok, TOKEN_CLOSE_BRACE, "}")) {
+      return NULL;
+    }
+    get_tok_next(tok);
+    return (expr_node_t*)init_block_node(function_body);
   }
-  expect(tok, 0, "unary op, '(', var declaration, identifier or an integer");
+  expect(tok, 0, "unary op, '(', var declaration, function declaration, identifier or an integer");
   return NULL;
 }
 
@@ -277,9 +281,15 @@ expr_node_t* parse_expression(tokenizer_t *tok) {
   return parse_expression_primary(tok, 0);
 }
 
-expr_node_t* parse_expression_list(tokenizer_t *tok) {
+expr_list_node_t* parse_expression_list(tokenizer_t *tok) {
   expr_list_node_t* expr_list = NULL;
+  printf("next tok '%d'\n", tok->current_tok);
   while (tok->current_tok != TOKEN_EOF) {
+    if (tok->current_tok == TOKEN_CLOSE_BRACE) {
+      printf("brace\n");
+      return expr_list;
+    }
+    printf("next expr\n");
     expr_node_t* next_expr = parse_expression(tok);
     if (!next_expr) return NULL;
     expr_list = (expr_list_node_t*)init_expr_list_node(expr_list, next_expr);
@@ -289,7 +299,7 @@ expr_node_t* parse_expression_list(tokenizer_t *tok) {
     }
     get_tok_next(tok);
   }
-  return (expr_node_t*)expr_list;
+  return expr_list;
 }
 
 expr_node_t* parse_file(FILE *input) {
@@ -298,7 +308,7 @@ expr_node_t* parse_file(FILE *input) {
   tokenizer.input = input;
 
   get_tok_next(&tokenizer);
-  expr_node_t* ast = parse_expression_list(&tokenizer);
+  expr_node_t* ast = (expr_node_t*)parse_expression_list(&tokenizer);
   if (!ast) {
     fprintf(stderr, "No expression parsed\n");
     return NULL;

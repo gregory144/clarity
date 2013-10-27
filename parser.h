@@ -14,8 +14,6 @@ typedef struct {
   double float_val;
 } tokenizer_t;
 
-char* token_to_string(tokenizer_t* tokenizer);
-
 expr_node_t* parse_file(FILE *input);
 
 #endif

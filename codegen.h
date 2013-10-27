@@ -24,6 +24,10 @@ LLVMValueRef codegen_bin_op(LLVMBuilderRef builder, bin_op_node_t* node);
 
 LLVMValueRef codegen_unary_op(LLVMBuilderRef builder, unary_op_node_t* node);
 
+LLVMValueRef codegen_fun_call(LLVMBuilderRef builder, fun_call_node_t* node);
+
+LLVMValueRef codegen_block(LLVMBuilderRef builder, block_node_t* node, char* function_name);
+
 LLVMModuleRef codegen(expr_node_t* ast);
 
 #endif

@@ -15,6 +15,7 @@
 
 #include "enums.h"
 #include "codegen.h"
+#include "graphgen.h"
 #include "parser.h"
 #include "ast.h"
 
@@ -71,6 +72,17 @@ int main(int argc, char const *argv[])
   if (!ast) {
     return 0;
   }
+
+  FILE *dot_file;
+  dot_file = fopen("graph.dot", "w");
+  char* dot_src = graphgen(ast);
+  if (dot_src) {
+    fprintf(dot_file, "%s\n", dot_src);
+  } else {
+    fprintf(stderr, "Unable to generate dot file");
+    fprintf(dot_file, "Unable to generate dot file");
+  }
+  fclose(dot_file);
 
   LLVMModuleRef mod = codegen(ast);
   if (!mod) {

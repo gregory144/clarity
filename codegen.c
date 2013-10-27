@@ -16,6 +16,37 @@
 #include "symbols.h"
 #include "codegen.h"
 
+static unsigned int function_index = 0;
+
+LLVMModuleRef mod;
+
+LLVMModuleRef get_current_module() {
+  return mod;
+}
+
+LLVMTypeRef get_function_type(block_node_t* block) {
+  printf("Getting function type\n");
+  LLVMTypeRef ret_type;
+  if (block->body->type == EXPR_TYPE_INT) {
+    printf("int\n");
+    ret_type = LLVMInt64Type();
+  } else if (block->body->type == EXPR_TYPE_FLOAT) {
+    printf("double\n");
+    ret_type = LLVMDoubleType();
+  } else if (block->body->type == EXPR_TYPE_FUN) {
+    printf("nested function:\n");
+    expr_list_node_t* expr_list = block->body;
+    while (expr_list->next) {
+      expr_list = expr_list->next;
+    }
+    ret_type = get_function_type((block_node_t*)expr_list);
+  } else {
+    fprintf(stderr, "Unknown type: %d\n", block->body->type);
+    return NULL;
+  }
+  return LLVMFunctionType(ret_type, NULL, 0, 0);
+}
+
 LLVMValueRef codegen_expr(LLVMBuilderRef builder, expr_node_t* node) {
   LLVMValueRef (*fun)() = node->codegen_fun;
   return fun(builder, node);
@@ -26,6 +57,7 @@ LLVMValueRef codegen_expr_list(LLVMBuilderRef builder, expr_list_node_t* node) {
   expr_list_node_t* iter;
   for (iter = node; iter; iter = iter->next) {
     ret = codegen_expr(builder, iter->expr);
+    LLVMDumpValue(ret);
   }
   return ret;
 }
@@ -44,12 +76,44 @@ LLVMValueRef codegen_ident(LLVMBuilderRef builder, ident_node_t* node) {
     fprintf(stderr, "codegen_ident: Unable to find symbol with name: %s\n", node->name);
     return NULL;
   }
-  return LLVMBuildLoad(builder, symbol->value, node->name);
+  printf("Loading %s\n", node->name);
+  LLVMDumpValue(symbol->value);
+  LLVMValueRef load = LLVMBuildLoad(builder, symbol->value, node->name);
+  printf("loaded:\n");
+  LLVMDumpValue(load);
+  return load;
+}
+
+LLVMValueRef codegen_fun_decl(LLVMBuilderRef builder, var_decl_node_t* node) {
+  block_node_t* block_node = (block_node_t*)node->rhs;
+  LLVMValueRef function_expr = codegen_block(builder, block_node, node->name);
+  if (!function_expr) return NULL;
+
+  /*LLVMTypeRef function_type = get_function_type(block_node);*/
+  /*if (function_type == NULL) {*/
+    /*return NULL;*/
+  /*}*/
+  /*LLVMTypeRef function_pointer_type = LLVMPointerType(function_type, 0);*/
+  /*LLVMValueRef alloca = LLVMBuildAlloca(builder, function_pointer_type, node->name);*/
+  /*printf("Func Alloca:\n");*/
+  /*LLVMDumpValue(alloca);*/
+
+  /*LLVMBuildStore(builder, function_value, alloca); // yields {void}*/
+
+  symbol_t* symbol = get_symbol(node->name);
+  if (!symbol) {
+    fprintf(stderr, "Unable to find symbol: %s\n", node->name);
+    return NULL;
+  }
+  symbol->value = function_expr;
+  return function_expr;
 }
 
 LLVMValueRef codegen_var_decl(LLVMBuilderRef builder, var_decl_node_t* node) {
+  if (node->type == EXPR_TYPE_FUN) {
+    return codegen_fun_decl(builder, node);
+  }
   LLVMValueRef alloca;
-  // TODO - handle different types
   if (node->type == EXPR_TYPE_INT) {
     alloca = LLVMBuildAlloca(builder, LLVMInt64Type(), node->name);
   } else if (node->type == EXPR_TYPE_FLOAT) {
@@ -60,14 +124,14 @@ LLVMValueRef codegen_var_decl(LLVMBuilderRef builder, var_decl_node_t* node) {
   }
   LLVMValueRef value = codegen_expr(builder, node->rhs);
   if (!value) return NULL;
-  LLVMBuildStore(builder, value, alloca);
+  LLVMBuildStore(builder, value, alloca); // yields {void}
   symbol_t* symbol = get_symbol(node->name);
   if (!symbol) {
     fprintf(stderr, "Unable to find symbol: %s\n", node->name);
     return NULL;
   }
   symbol->value = alloca;
-  return value;
+  return alloca;
 }
 
 LLVMValueRef codegen_bin_op(LLVMBuilderRef builder, bin_op_node_t* node) {
@@ -159,11 +223,60 @@ LLVMValueRef codegen_unary_op(LLVMBuilderRef builder, unary_op_node_t* node) {
   return NULL;
 }
 
+LLVMValueRef codegen_fun_call(LLVMBuilderRef builder, fun_call_node_t* node) {
+  printf("function call\n");
+  symbol_t* symbol = get_symbol(node->name);
+  if (!symbol) {
+    fprintf(stderr, "Unable to find symbol with name: %s\n", node->name);
+    return NULL;
+  }
+  if (symbol->type != EXPR_TYPE_FUN) {
+    printf("%s is a %d  != %d\n", node->name, symbol->type, EXPR_TYPE_FUN);
+    fprintf(stderr, "%s is not a function\n", node->name);
+    return NULL;
+  }
+
+  LLVMValueRef args[0];
+  printf("building call\n");
+  return LLVMBuildCall(builder, symbol->value, args, 0, "fun_res");
+}
+
+LLVMValueRef codegen_block(LLVMBuilderRef builder, block_node_t* node, char* function_name) {
+  /*LLVMTypeRef* params = NULL;*/
+  if (function_name == NULL) {
+    function_name = (char*) malloc(sizeof(char) * 512);
+    sprintf(function_name, "function%d", function_index);
+    function_index++;
+  }
+
+  printf("codegen_block\n");
+  LLVMBasicBlockRef prev_block = LLVMGetInsertBlock(builder);
+
+  LLVMTypeRef function_type = get_function_type(node);
+  LLVMValueRef func = LLVMAddFunction(get_current_module(), function_name, function_type);
+  LLVMSetFunctionCallConv(func, LLVMCCallConv);
+
+  LLVMBasicBlockRef entry = LLVMAppendBasicBlock(func, "entry");
+  LLVMPositionBuilderAtEnd(builder, entry);
+
+  printf("Building block body\n");
+  LLVMValueRef body = codegen_expr_list(builder, node->body);
+  printf("Built block body\n");
+
+  LLVMBuildRet(builder, body);
+
+  LLVMPositionBuilderAtEnd(builder, prev_block);
+  return func;
+}
+
 LLVMModuleRef codegen(expr_node_t* ast) {
   // compile it
   LLVMBuilderRef builder = LLVMCreateBuilder();
 
-  LLVMModuleRef mod = LLVMModuleCreateWithName("calc");
+  mod = LLVMModuleCreateWithName("tool_mod");
+
+  printf("Node type: %s\n", node_to_string(ast->node_type));
+  printf("type: %s\n", type_to_string(ast->type));
 
   LLVMTypeRef main_args[] = {};
   LLVMTypeRef ret_type;
@@ -171,6 +284,9 @@ LLVMModuleRef codegen(expr_node_t* ast) {
     ret_type = LLVMInt64Type();
   } else if (ast->type == EXPR_TYPE_FLOAT) {
     ret_type = LLVMDoubleType();
+  } else {
+    fprintf(stderr, "Unable to determine return type of program: %s (%d)\n", type_to_string(ast->type), ast->type);
+    return NULL;
   }
   LLVMValueRef main_func = LLVMAddFunction(mod, "main", LLVMFunctionType(ret_type, main_args, 0, 0));
   LLVMSetFunctionCallConv(main_func, LLVMCCallConv);

@@ -10,6 +10,7 @@
 typedef struct symbol_t {
   char* name;
   expr_type_t type;
+  expr_type_t ret_type;
   LLVMValueRef value;
   struct symbol_t* next;
 } symbol_t;
