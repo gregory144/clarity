@@ -19,6 +19,7 @@ expr_list_node_t* init_expr_list_node(expr_list_node_t* old_list, expr_node_t* n
     expr_list_node_t* iter;
     for (iter = old_list; iter->next; iter = iter->next);
     iter->next = node;
+    // TODO - is this causing an error by replacing an expressions type?
     // set old list type to return type of new_expr
     old_list->type = new_expr->type; 
     return old_list;
