@@ -3,11 +3,11 @@
 #include <stdio.h>
 
 #include "ast.h"
-#include "symbols.h"
+#include "symbol.h"
 #include "codegen.h"
 #include "graphgen.h"
 
-expr_list_node_t* init_expr_list_node(expr_list_node_t* old_list, expr_node_t* new_expr) {
+expr_list_node_t* ast_expr_list_node_init(expr_list_node_t* old_list, expr_node_t* new_expr) {
   expr_list_node_t* node = (expr_list_node_t*)malloc(sizeof(expr_list_node_t));
   node->node_type = NODE_EXPR_LIST;
   node->codegen_fun = codegen_expr_list;
@@ -28,7 +28,7 @@ expr_list_node_t* init_expr_list_node(expr_list_node_t* old_list, expr_node_t* n
   }
 }
 
-const_int_node_t* init_const_int_node(long val) {
+const_int_node_t* ast_const_int_node_init(long val) {
   const_int_node_t* node = (const_int_node_t*)malloc(sizeof(const_int_node_t));
   node->node_type = NODE_CONST_INT;
   node->codegen_fun = codegen_const_int;
@@ -38,7 +38,7 @@ const_int_node_t* init_const_int_node(long val) {
   return node;
 }
 
-const_float_node_t* init_const_float_node(double val) {
+const_float_node_t* ast_const_float_node_init(double val) {
   const_float_node_t* node = (const_float_node_t*)malloc(sizeof(const_float_node_t));
   node->node_type = NODE_CONST_FLOAT;
   node->codegen_fun = codegen_const_float;
@@ -48,15 +48,15 @@ const_float_node_t* init_const_float_node(double val) {
   return node;
 }
 
-ident_node_t* init_ident_node(char* name) {
+ident_node_t* ast_ident_node_init(char* name) {
   ident_node_t* node = (ident_node_t*)malloc(sizeof(ident_node_t));
   node->node_type = NODE_IDENT;
   node->codegen_fun = codegen_ident;
   node->graphgen_fun = graphgen_ident;
 
-  symbol_t* symbol = get_symbol(name);
+  symbol_t* symbol = symbol_get(name);
   if (!symbol) {
-    fprintf(stderr, "init_ident_node: Unable to find symbol with name: %s\n", name);
+    fprintf(stderr, "ast_ident_node_init: Unable to find symbol with name: %s\n", name);
     return NULL;
   }
   node->type = symbol->type;
@@ -65,7 +65,7 @@ ident_node_t* init_ident_node(char* name) {
   return node;
 }
 
-var_decl_node_t* init_var_decl_node(char* name, expr_node_t* rhs) {
+var_decl_node_t* ast_var_decl_node_init(char* name, expr_node_t* rhs) {
   var_decl_node_t* node = (var_decl_node_t*)malloc(sizeof(var_decl_node_t));
   node->node_type = NODE_VAR_DECL;
   node->codegen_fun = codegen_var_decl;
@@ -76,7 +76,7 @@ var_decl_node_t* init_var_decl_node(char* name, expr_node_t* rhs) {
   return node;
 }
 
-bin_op_node_t* init_bin_op_node(bin_op_t op, expr_node_t* lhs, expr_node_t* rhs) {
+bin_op_node_t* ast_bin_op_node_init(bin_op_t op, expr_node_t* lhs, expr_node_t* rhs) {
   bin_op_node_t* node = (bin_op_node_t*)malloc(sizeof(bin_op_node_t));
   node->node_type = NODE_BINARY_OP;
   node->codegen_fun = codegen_bin_op;
@@ -96,7 +96,7 @@ bin_op_node_t* init_bin_op_node(bin_op_t op, expr_node_t* lhs, expr_node_t* rhs)
   return node;
 }
 
-unary_op_node_t* init_unary_op_node(unary_op_t op, expr_node_t* rhs) {
+unary_op_node_t* ast_unary_op_node_init(unary_op_t op, expr_node_t* rhs) {
   unary_op_node_t* node = (unary_op_node_t*)malloc(sizeof(unary_op_node_t));
   node->node_type = NODE_UNARY_OP;
   node->codegen_fun = codegen_unary_op;
@@ -107,15 +107,15 @@ unary_op_node_t* init_unary_op_node(unary_op_t op, expr_node_t* rhs) {
   return node;
 }
 
-fun_call_node_t* init_fun_call_node(char* name) {
+fun_call_node_t* ast_fun_call_node_init(char* name) {
   fun_call_node_t* node = (fun_call_node_t*)malloc(sizeof(fun_call_node_t));
   node->node_type = NODE_FUN_CALL;
   node->codegen_fun = codegen_fun_call;
   node->graphgen_fun = graphgen_fun_call;
 
-  symbol_t* symbol = get_symbol(name);
+  symbol_t* symbol = symbol_get(name);
   if (!symbol) {
-    fprintf(stderr, "init_ident_node: Unable to find symbol with name: %s\n", node->name);
+    fprintf(stderr, "ast_fun_call_node_init: Unable to find symbol with name: %s\n", node->name);
     return NULL;
   }
   if (symbol->type != EXPR_TYPE_FUN) {
@@ -129,7 +129,7 @@ fun_call_node_t* init_fun_call_node(char* name) {
   return node;
 }
 
-block_node_t* init_block_node(expr_list_node_t* fun_body) {
+block_node_t* ast_block_node_init(expr_list_node_t* fun_body) {
   block_node_t* node = (block_node_t*)malloc(sizeof(block_node_t));
   node->node_type = NODE_BLOCK;
   node->codegen_fun = codegen_block;

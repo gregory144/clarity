@@ -90,22 +90,22 @@ typedef struct {
   expr_node_t *lhs, *rhs;
 } bin_op_node_t;
 
-expr_list_node_t* init_expr_list_node(expr_list_node_t* old_list, expr_node_t* new_expr);
+expr_list_node_t* ast_expr_list_node_init(expr_list_node_t* old_list, expr_node_t* new_expr);
 
-const_int_node_t* init_const_int_node(long val);
+const_int_node_t* ast_const_int_node_init(long val);
 
-const_float_node_t* init_const_float_node(double val);
+const_float_node_t* ast_const_float_node_init(double val);
 
-ident_node_t* init_ident_node(char* name);
+ident_node_t* ast_ident_node_init(char* name);
 
-var_decl_node_t* init_var_decl_node(char* name, expr_node_t* rhs);
+var_decl_node_t* ast_var_decl_node_init(char* name, expr_node_t* rhs);
 
-bin_op_node_t* init_bin_op_node(bin_op_t op, expr_node_t* lhs, expr_node_t* rhs);
+bin_op_node_t* ast_bin_op_node_init(bin_op_t op, expr_node_t* lhs, expr_node_t* rhs);
 
-unary_op_node_t* init_unary_op_node(unary_op_t op, expr_node_t* rhs);
+unary_op_node_t* ast_unary_op_node_init(unary_op_t op, expr_node_t* rhs);
 
-fun_call_node_t* init_fun_call_node(char* name);
+fun_call_node_t* ast_fun_call_node_init(char* name);
 
-block_node_t* init_block_node(expr_list_node_t* fun_body);
+block_node_t* ast_block_node_init(expr_list_node_t* fun_body);
 
 #endif

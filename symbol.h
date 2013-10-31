@@ -15,8 +15,8 @@ typedef struct symbol_t {
   struct symbol_t* next;
 } symbol_t;
 
-symbol_t* get_symbol(char* name);
+symbol_t* symbol_get(char* name);
 
-symbol_t* set_symbol(char* name, expr_type_t type);
+symbol_t* symbol_set(char* name, expr_type_t type);
 
 #endif

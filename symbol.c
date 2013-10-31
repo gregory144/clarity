@@ -4,11 +4,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "symbols.h"
+#include "symbol.h"
 
 symbol_t* symbols;
 
-symbol_t* get_symbol(char* name) {
+symbol_t* symbol_get(char* name) {
   symbol_t* curr = symbols;
   while (curr) {
     if (name != NULL && curr->name != NULL) {
@@ -25,7 +25,7 @@ symbol_t* get_symbol(char* name) {
   return NULL;
 }
 
-symbol_t* set_symbol(char* name, expr_type_t type) {
+symbol_t* symbol_set(char* name, expr_type_t type) {
   symbol_t* new_symbol = (symbol_t*)malloc(sizeof(symbol_t));
   new_symbol->name = name;
   new_symbol->type = type;

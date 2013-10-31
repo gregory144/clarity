@@ -13,10 +13,9 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "enums.h"
 #include "codegen.h"
 #include "graphgen.h"
-#include "parser.h"
+#include "parse.h"
 #include "ast.h"
 
 void execute(LLVMModuleRef mod) {

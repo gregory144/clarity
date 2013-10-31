@@ -13,7 +13,7 @@
 #include <limits.h>
 #include <ctype.h>
 
-#include "symbols.h"
+#include "symbol.h"
 #include "codegen.h"
 
 static unsigned int function_index = 0;
@@ -71,7 +71,7 @@ LLVMValueRef codegen_const_float(LLVMBuilderRef builder, const_float_node_t* nod
 }
 
 LLVMValueRef codegen_ident(LLVMBuilderRef builder, ident_node_t* node) {
-  symbol_t* symbol = get_symbol(node->name);
+  symbol_t* symbol = symbol_get(node->name);
   if (!symbol) {
     fprintf(stderr, "codegen_ident: Unable to find symbol with name: %s\n", node->name);
     return NULL;
@@ -100,7 +100,7 @@ LLVMValueRef codegen_fun_decl(LLVMBuilderRef builder, var_decl_node_t* node) {
 
   /*LLVMBuildStore(builder, function_value, alloca); // yields {void}*/
 
-  symbol_t* symbol = get_symbol(node->name);
+  symbol_t* symbol = symbol_get(node->name);
   if (!symbol) {
     fprintf(stderr, "Unable to find symbol: %s\n", node->name);
     return NULL;
@@ -125,7 +125,7 @@ LLVMValueRef codegen_var_decl(LLVMBuilderRef builder, var_decl_node_t* node) {
   LLVMValueRef value = codegen_expr(builder, node->rhs);
   if (!value) return NULL;
   LLVMBuildStore(builder, value, alloca); // yields {void}
-  symbol_t* symbol = get_symbol(node->name);
+  symbol_t* symbol = symbol_get(node->name);
   if (!symbol) {
     fprintf(stderr, "Unable to find symbol: %s\n", node->name);
     return NULL;
@@ -143,7 +143,7 @@ LLVMValueRef codegen_bin_op(LLVMBuilderRef builder, bin_op_node_t* node) {
       return NULL;
     }
     ident_node_t* ident_node = (ident_node_t*)node->lhs;
-    symbol_t* symbol = get_symbol(ident_node->name);
+    symbol_t* symbol = symbol_get(ident_node->name);
     if (!symbol) {
       fprintf(stderr, "codegen_bin_op: Unable to find symbol with name: %s\n", ident_node->name);
       return NULL;
@@ -225,7 +225,7 @@ LLVMValueRef codegen_unary_op(LLVMBuilderRef builder, unary_op_node_t* node) {
 
 LLVMValueRef codegen_fun_call(LLVMBuilderRef builder, fun_call_node_t* node) {
   printf("function call\n");
-  symbol_t* symbol = get_symbol(node->name);
+  symbol_t* symbol = symbol_get(node->name);
   if (!symbol) {
     fprintf(stderr, "Unable to find symbol with name: %s\n", node->name);
     return NULL;
