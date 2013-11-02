@@ -4,6 +4,7 @@
 #define GRAPHGEN_H
 
 #include "list.h"
+#include "context.h"
 #include "ast.h"
 
 typedef struct {
@@ -44,6 +45,6 @@ graph_vertex_t* graphgen_fun_call(graph_t* builder, fun_call_node_t* node);
 
 graph_vertex_t* graphgen_block(graph_t* builder, block_node_t* node);
 
-char* graphgen(expr_node_t* ast);
+char* graphgen(context_t* context, expr_node_t* ast);
 
 #endif

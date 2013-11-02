@@ -6,8 +6,9 @@
 #include "symbol.h"
 #include "codegen.h"
 #include "graphgen.h"
+#include "list.h"
 
-expr_list_node_t* ast_expr_list_node_init(expr_list_node_t* old_list, expr_node_t* new_expr) {
+expr_list_node_t* ast_expr_list_node_init(context_t* context, expr_list_node_t* old_list, expr_node_t* new_expr) {
   expr_list_node_t* node = (expr_list_node_t*)malloc(sizeof(expr_list_node_t));
   node->node_type = NODE_EXPR_LIST;
   node->codegen_fun = codegen_expr_list;
@@ -28,33 +29,33 @@ expr_list_node_t* ast_expr_list_node_init(expr_list_node_t* old_list, expr_node_
   }
 }
 
-const_int_node_t* ast_const_int_node_init(long val) {
+const_int_node_t* ast_const_int_node_init(context_t* context, long val) {
   const_int_node_t* node = (const_int_node_t*)malloc(sizeof(const_int_node_t));
   node->node_type = NODE_CONST_INT;
   node->codegen_fun = codegen_const_int;
   node->graphgen_fun = graphgen_const_int;
-  node->type = EXPR_TYPE_INT;
+  node->type = type_get(context->type_sys, "Integer");
   node->val = val;
   return node;
 }
 
-const_float_node_t* ast_const_float_node_init(double val) {
+const_float_node_t* ast_const_float_node_init(context_t* context, double val) {
   const_float_node_t* node = (const_float_node_t*)malloc(sizeof(const_float_node_t));
   node->node_type = NODE_CONST_FLOAT;
   node->codegen_fun = codegen_const_float;
   node->graphgen_fun = graphgen_const_float;
-  node->type = EXPR_TYPE_FLOAT;
+  node->type = type_get(context->type_sys, "Float");
   node->val = val;
   return node;
 }
 
-ident_node_t* ast_ident_node_init(char* name) {
+ident_node_t* ast_ident_node_init(context_t* context, char* name) {
   ident_node_t* node = (ident_node_t*)malloc(sizeof(ident_node_t));
   node->node_type = NODE_IDENT;
   node->codegen_fun = codegen_ident;
   node->graphgen_fun = graphgen_ident;
 
-  symbol_t* symbol = symbol_get(name);
+  symbol_t* symbol = symbol_get(context->symbol_table, name);
   if (!symbol) {
     fprintf(stderr, "ast_ident_node_init: Unable to find symbol with name: %s\n", name);
     return NULL;
@@ -65,7 +66,7 @@ ident_node_t* ast_ident_node_init(char* name) {
   return node;
 }
 
-var_decl_node_t* ast_var_decl_node_init(char* name, expr_node_t* rhs) {
+var_decl_node_t* ast_var_decl_node_init(context_t* context, char* name, expr_node_t* rhs) {
   var_decl_node_t* node = (var_decl_node_t*)malloc(sizeof(var_decl_node_t));
   node->node_type = NODE_VAR_DECL;
   node->codegen_fun = codegen_var_decl;
@@ -76,16 +77,18 @@ var_decl_node_t* ast_var_decl_node_init(char* name, expr_node_t* rhs) {
   return node;
 }
 
-bin_op_node_t* ast_bin_op_node_init(bin_op_t op, expr_node_t* lhs, expr_node_t* rhs) {
+bin_op_node_t* ast_bin_op_node_init(context_t* context, bin_op_t op, expr_node_t* lhs, expr_node_t* rhs) {
   bin_op_node_t* node = (bin_op_node_t*)malloc(sizeof(bin_op_node_t));
   node->node_type = NODE_BINARY_OP;
   node->codegen_fun = codegen_bin_op;
   node->graphgen_fun = graphgen_bin_op;
-  if (lhs->type == rhs->type) {
+  type_t* type_int = type_get(context->type_sys, "Integer");
+  type_t* type_float = type_get(context->type_sys, "Float");
+  if (type_equals(lhs->type, rhs->type)) {
     node->type = lhs->type;
-  } else if ((lhs->type == EXPR_TYPE_INT || lhs->type == EXPR_TYPE_FLOAT) &&
-      (rhs->type == EXPR_TYPE_INT || rhs->type == EXPR_TYPE_FLOAT)) {
-    node->type = EXPR_TYPE_FLOAT;
+  } else if ((type_equals(lhs->type, type_int) || type_equals(lhs->type, type_float)) &&
+      (type_equals(rhs->type, type_int) || type_equals(rhs->type, type_float))) {
+    node->type = type_float;
   } else {
     fprintf(stderr, "Unable to determine final type of binary operation\n");
     return NULL;
@@ -96,7 +99,7 @@ bin_op_node_t* ast_bin_op_node_init(bin_op_t op, expr_node_t* lhs, expr_node_t* 
   return node;
 }
 
-unary_op_node_t* ast_unary_op_node_init(unary_op_t op, expr_node_t* rhs) {
+unary_op_node_t* ast_unary_op_node_init(context_t* context, unary_op_t op, expr_node_t* rhs) {
   unary_op_node_t* node = (unary_op_node_t*)malloc(sizeof(unary_op_node_t));
   node->node_type = NODE_UNARY_OP;
   node->codegen_fun = codegen_unary_op;
@@ -107,18 +110,18 @@ unary_op_node_t* ast_unary_op_node_init(unary_op_t op, expr_node_t* rhs) {
   return node;
 }
 
-fun_call_node_t* ast_fun_call_node_init(char* name) {
+fun_call_node_t* ast_fun_call_node_init(context_t* context, char* name) {
   fun_call_node_t* node = (fun_call_node_t*)malloc(sizeof(fun_call_node_t));
   node->node_type = NODE_FUN_CALL;
   node->codegen_fun = codegen_fun_call;
   node->graphgen_fun = graphgen_fun_call;
 
-  symbol_t* symbol = symbol_get(name);
+  symbol_t* symbol = symbol_get(context->symbol_table, name);
   if (!symbol) {
     fprintf(stderr, "ast_fun_call_node_init: Unable to find symbol with name: %s\n", node->name);
     return NULL;
   }
-  if (symbol->type != EXPR_TYPE_FUN) {
+  if (!type_equals(symbol->type, type_get(context->type_sys, "Function"))) {
     fprintf(stderr, "%s is not a function\n", node->name);
     return NULL;
   }
@@ -129,13 +132,14 @@ fun_call_node_t* ast_fun_call_node_init(char* name) {
   return node;
 }
 
-block_node_t* ast_block_node_init(expr_list_node_t* fun_body) {
+block_node_t* ast_block_node_init(context_t* context, list_t* param_list, expr_list_node_t* fun_body) {
   block_node_t* node = (block_node_t*)malloc(sizeof(block_node_t));
   node->node_type = NODE_BLOCK;
   node->codegen_fun = codegen_block;
   node->graphgen_fun = graphgen_block;
-  node->type = EXPR_TYPE_FUN;
+  node->type = type_get(context->type_sys, "Function");
   node->body = fun_body;
+  node->params = param_list;
   return node;
 }
 

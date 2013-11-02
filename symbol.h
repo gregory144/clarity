@@ -1,22 +1,29 @@
-#ifndef SYMBOLS_H
+#ifndef SYMBOL_H
 
-#define SYMBOLS_H
+#define SYMBOL_H
 
 // Headers required by LLVM
 #include <llvm-c/Core.h>
 
+#include "type.h"
+#include "list.h"
 #include "enums.h"
+
+typedef struct symbol_table_t {
+  list_t* symbols;
+} symbol_table_t;
 
 typedef struct symbol_t {
   char* name;
-  expr_type_t type;
-  expr_type_t ret_type;
+  type_t* type;
+  type_t* ret_type;
   LLVMValueRef value;
-  struct symbol_t* next;
 } symbol_t;
 
-symbol_t* symbol_get(char* name);
+symbol_table_t* symbol_init();
 
-symbol_t* symbol_set(char* name, expr_type_t type);
+symbol_t* symbol_get(symbol_table_t* symbol_table, char* name);
+
+symbol_t* symbol_set(symbol_table_t* symbol_table, char* name, type_t* type);
 
 #endif

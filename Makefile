@@ -3,8 +3,8 @@ CFLAGS=-g `llvm-config --cflags` -O0
 LD=clang++
 LDFLAGS=`llvm-config --libs --cflags --ldflags core analysis executionengine jit interpreter native`
 
-tool: tool.o ast.o parse.o codegen.o symbol.o enums.o list.o graphgen.o
-	$(LD) tool.o ast.o parse.o codegen.o symbol.o enums.o list.o graphgen.o $(LDFLAGS) -o tool -rdynamic
+tool: tool.o ast.o parse.o codegen.o symbol.o enums.o list.o graphgen.o context.o type.o
+	$(LD) tool.o ast.o parse.o codegen.o symbol.o enums.o list.o graphgen.o context.o type.o $(LDFLAGS) -o tool -rdynamic
 
 tool.o: tool.c
 	$(CC) $(CFLAGS) -c tool.c
@@ -29,6 +29,12 @@ list.o: list.c list.h
 
 graphgen.o: graphgen.c graphgen.h
 	$(CC) $(CFLAGS) -c graphgen.c
+
+context.o: context.c context.h
+	$(CC) $(CFLAGS) -c context.c
+
+type.o: type.c type.h
+	$(CC) $(CFLAGS) -c type.c
 
 graph: graph.dot
 	dot -Tsvg graph.dot > graph.svg

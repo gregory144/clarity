@@ -35,7 +35,8 @@ typedef enum {
   TOKEN_PLUS,
   TOKEN_SEMI,
   TOKEN_STAR,
-  TOKEN_VAR_DECL,
+  TOKEN_COMMA,
+  TOKEN_COLON,
 } token_t;
 
 typedef enum {
@@ -52,15 +53,6 @@ typedef enum {
   UNARY_OP_INVALID,
   UNARY_OP_NEGATE,
 } unary_op_t;
-
-typedef enum {
-  EXPR_TYPE_INVALID,
-  EXPR_TYPE_FLOAT,
-  EXPR_TYPE_FUN,
-  EXPR_TYPE_INT,
-} expr_type_t;
-
-char* type_to_string(expr_type_t);
 
 char* token_to_string(token_t);
 

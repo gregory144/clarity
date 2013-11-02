@@ -27,6 +27,8 @@ void* list_pop(list_t* list);
 // remove from front
 void* list_shift(list_t* list);
 
+list_item_t* list_iter_init(list_t*);
+
 list_item_t* list_iter(list_item_t*);
 
 #endif

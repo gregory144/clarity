@@ -9,14 +9,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 #include <limits.h>
-#include <ctype.h>
 
 #include "codegen.h"
 #include "graphgen.h"
 #include "parse.h"
 #include "ast.h"
+#include "context.h"
 
 void execute(LLVMModuleRef mod) {
   LLVMExecutionEngineRef engine;
@@ -67,14 +66,16 @@ int main(int argc, char const *argv[])
   LLVMLinkInJIT();
   LLVMInitializeNativeTarget();
 
-  expr_node_t* ast = parse_file(stdin);
+  context_t* context = context_init();
+
+  expr_node_t* ast = parse_file(context, stdin);
   if (!ast) {
     return 0;
   }
 
   FILE *dot_file;
   dot_file = fopen("graph.dot", "w");
-  char* dot_src = graphgen(ast);
+  char* dot_src = graphgen(context, ast);
   if (dot_src) {
     fprintf(dot_file, "%s\n", dot_src);
   } else {
@@ -83,7 +84,7 @@ int main(int argc, char const *argv[])
   }
   fclose(dot_file);
 
-  LLVMModuleRef mod = codegen(ast);
+  LLVMModuleRef mod = codegen(context, ast);
   if (!mod) {
     return 0;
   }

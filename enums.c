@@ -2,28 +2,8 @@
 #include "stdlib.h"
 #include "stdio.h"
 
-char* type_to_string(expr_type_t type) {
-  char* buf = malloc(sizeof(char) * 512);
-  switch(type) {
-    case EXPR_TYPE_INT:
-      sprintf(buf, "int");
-      break;
-    case EXPR_TYPE_FLOAT:
-      sprintf(buf, "float");
-      break;
-    case EXPR_TYPE_FUN:
-      sprintf(buf, "function");
-      break;
-    case EXPR_TYPE_INVALID:
-    default:
-      sprintf(buf, "invalid type");
-      break;
-  }
-  return buf;
-}
-
 char* token_to_string(token_t token) {
-  char* buf = malloc(sizeof(char) * 512);
+  char* buf = malloc(sizeof(char) * 4096);
   switch(token) {
     case TOKEN_INTEGER:
       sprintf(buf, "int");
@@ -33,9 +13,6 @@ char* token_to_string(token_t token) {
       break;
     case TOKEN_IDENT:
       sprintf(buf, "ident");
-      break;
-    case TOKEN_VAR_DECL:
-      sprintf(buf, "var");
       break;
     case TOKEN_EOF:
       sprintf(buf, "EOF");
@@ -73,6 +50,12 @@ char* token_to_string(token_t token) {
     case TOKEN_SEMI:
       sprintf(buf, ";");
       break;
+    case TOKEN_COLON:
+      sprintf(buf, ":");
+      break;
+    case TOKEN_COMMA:
+      sprintf(buf, ",");
+      break;
     case TOKEN_INVALID:
     default:
       sprintf(buf, "invalid token");
@@ -82,7 +65,7 @@ char* token_to_string(token_t token) {
 }
 
 char* node_to_string(node_t node) {
-  char* buf = malloc(sizeof(char) * 512);
+  char* buf = malloc(sizeof(char) * 4096);
   switch(node) {
     case NODE_BINARY_OP:
       sprintf(buf, "binary operation");

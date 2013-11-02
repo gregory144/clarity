@@ -1,10 +1,10 @@
 
-#ifndef PARSER_H
+#ifndef PARSE_H
 
-#define PARSER_H
+#define PARSE_H
 
-#include "ast.h"
 #include "enums.h"
+#include "context.h"
 
 typedef struct {
   FILE* input;
@@ -14,6 +14,6 @@ typedef struct {
   double float_val;
 } tokenizer_t;
 
-expr_node_t* parse_file(FILE *input);
+expr_node_t* parse_file(context_t* context, FILE *input);
 
 #endif

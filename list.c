@@ -88,6 +88,13 @@ void* list_pop(list_t* list) {
   }
 }
 
+list_item_t* list_iter_init(list_t* list) {
+  return list->head;
+}
+
 list_item_t* list_iter(list_item_t* curr) {
-  return curr->next;
+  if (curr) {
+    return curr->next;
+  }
+  return NULL;
 }
