@@ -140,6 +140,7 @@ if (strcmp(tok->ident, s) == 0) return ret
     case '}': return TOKEN_CLOSE_BRACE;
     case ';': return TOKEN_SEMI;
     case ':': return TOKEN_COLON;
+    case ',': return TOKEN_COMMA;
   }
   fprintf(stderr, "Unreconized character: %c\n", i);
   return TOKEN_INVALID;
@@ -201,51 +202,105 @@ expr_node_t* parse_expression_var_decl(context_t* context, tokenizer_t *tok, cha
       fprintf(stderr, "Declaring variable '%s' as %s but setting %s\n", ident, type_to_string(declared_type), type_to_string(rhs->type));
       return NULL;
     }
+    free(type_name);
   }
 
   printf("declaring %s with type %s\n", ident, type_to_string(rhs->type));
-  symbol = symbol_set(context->symbol_table, ident, rhs->type);
+  symbol = symbol_set(context->symbol_table, strdup(ident), rhs->type, false);
   if (type_equals(rhs->type, type_get(context->type_sys, "Function"))) {
     block_node_t* block = (block_node_t*)rhs;
     symbol->ret_type = block->body->type;
+    symbol->num_params = block->params->size;
   }
   return (expr_node_t*)ast_var_decl_node_init(context, ident, rhs);
 }
 
-expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok);
-
-list_t* parse_param_list(context_t* context, tokenizer_t *tok) {
-  list_t* params = list_init();
-  if (tok->current_tok == TOKEN_CLOSE_PAREN) {
-    return params;
-  }
-  char* ident = strdup(tok->ident);
-  list_push(params, ident);
+expr_node_t* parse_fun_call(context_t* context, tokenizer_t* tok, char* ident) {
+  printf("Parsing function call: %s\n", ident);
   parse_get_tok_next(tok);
-  while (tok->current_tok == TOKEN_COMMA) {
-    parse_get_tok_next(tok);
-    if (!parse_expect(tok, TOKEN_IDENT, "ident")) {
+  list_t* params = list_init();
+  bool first_pass = true;
+  if (tok->current_tok != TOKEN_CLOSE_PAREN) {
+    do {
+      if (!first_pass) {
+        parse_get_tok_next(tok);
+      }
+      printf("Parsing parameter expression\n");
+      expr_node_t* expr = parse_expression_primary(context, tok, 0);
+      if (expr == NULL) return NULL;
+      list_push(params, expr);
+      first_pass = false;
+    } while (tok->current_tok == TOKEN_COMMA);
+    if (!parse_expect(tok, TOKEN_CLOSE_PAREN, "')'")) {
       return NULL;
     }
-    char* ident = strdup(tok->ident);
-    list_push(params, ident);
-    parse_get_tok_next(tok);
   }
-  return params;
+  parse_get_tok_next(tok);
+  printf("Finished parsing function call\n");
+  return (expr_node_t*)ast_fun_call_node_init(context, ident, params);
 }
 
-expr_node_t* parse_expression_block(context_t* context, tokenizer_t *tok) {
+expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok);
+
+type_t* parse_type_decl(context_t* context, tokenizer_t* tok) {
+  if (!parse_expect(tok, TOKEN_IDENT, "type name")) {
+    return NULL;
+  }
+  char* type_name = tok->ident;
+  // TODO check if function type
+  type_t* type = type_get(context->type_sys, type_name);
+  if (type == NULL) {
+    fprintf(stderr, "Unable to identify type: %s\n", type_name);
+    return NULL;
+  }
+  return type;
+}
+
+list_t* parse_param_list(context_t* context, tokenizer_t *tok) {
   parse_get_tok_next(tok);
   if (!parse_expect(tok, TOKEN_OPEN_PAREN, "(")) {
     return NULL;
   }
-  parse_get_tok_next(tok);
-  list_t* param_list = parse_param_list(context, tok);
+  parse_get_tok_next(tok); // discard open (
+  list_t* params = list_init();
+  bool first_pass = true;
+  if (tok->current_tok != TOKEN_CLOSE_PAREN) {
+    do {
+      if (!first_pass) {
+        parse_get_tok_next(tok);
+      }
+      if (!parse_expect(tok, TOKEN_IDENT, "identifier")) {
+        return NULL;
+      }
+      char* ident = strdup(tok->ident);
+      parse_get_tok_next(tok);
+      if (!parse_expect(tok, TOKEN_COLON, ":")) {
+        return NULL;
+      }
+      parse_get_tok_next(tok);
+      type_t* type = parse_type_decl(context, tok);
+      if (type == NULL) return NULL;
+
+      fun_param_node_t* param = ast_fun_param_node_init(context, ident, type);
+      printf("Adding param to func def %s\n", ident);
+      symbol_set(context->symbol_table, strdup(ident), type, true);
+      list_push(params, param);
+      parse_get_tok_next(tok);
+      first_pass = false;
+    } while (tok->current_tok == TOKEN_COMMA);
+  }
   if (!parse_expect(tok, TOKEN_CLOSE_PAREN, ")")) {
     return NULL;
   }
   parse_get_tok_next(tok);
+  return params;
+}
+
+expr_node_t* parse_block(context_t* context, tokenizer_t *tok) {
+  list_t* param_list = parse_param_list(context, tok);
+  if (param_list == NULL) return NULL;
   expr_list_node_t* function_body = parse_expression_list(context, tok);
+  if (function_body == NULL)  return NULL;
   if (!parse_expect(tok, TOKEN_CLOSE_BRACE, "}")) {
     return NULL;
   }
@@ -273,23 +328,20 @@ expr_node_t* parse_expression_secondary(context_t* context, tokenizer_t *tok) {
     parse_get_tok_next(tok);
     return float_node;
   } else if (tok->current_tok == TOKEN_IDENT) {
+    expr_node_t* ret = NULL;
     char* ident = strdup(tok->ident);
     parse_get_tok_next(tok);
     if (tok->current_tok == TOKEN_OPEN_PAREN) {
-      // this is a function call
-      parse_get_tok_next(tok);
-      if (!parse_expect(tok, TOKEN_CLOSE_PAREN, "')'")) {
-        return NULL;
-      }
-      parse_get_tok_next(tok);
-      return (expr_node_t*)ast_fun_call_node_init(context, ident);
+      ret = parse_fun_call(context, tok, ident);
     } else if (tok->current_tok == TOKEN_EQUAL || tok->current_tok == TOKEN_COLON) {
-      return parse_expression_var_decl(context, tok, ident);
+      ret = parse_expression_var_decl(context, tok, ident);
     } else {
-      return (expr_node_t*)ast_ident_node_init(context, ident);
+      ret = (expr_node_t*)ast_ident_node_init(context, ident);
     }
+    free(ident);
+    return ret;
   } else if (tok->current_tok == TOKEN_OPEN_BRACE) {
-    return parse_expression_block(context, tok);
+    return parse_block(context, tok);
   }
   parse_expect(tok, 0, "unary op, '(', var declaration, function declaration, identifier or an integer");
   return NULL;
@@ -328,7 +380,7 @@ expr_node_t* parse_expression(context_t* context, tokenizer_t *tok) {
 }
 
 expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok) {
-  expr_list_node_t* expr_list = NULL;
+  expr_list_node_t* expr_list = (expr_list_node_t*)ast_expr_list_node_init(context);
   printf("next tok '%d'\n", tok->current_tok);
   while (tok->current_tok != TOKEN_EOF) {
     if (tok->current_tok == TOKEN_CLOSE_BRACE) {
@@ -338,7 +390,8 @@ expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok) {
     printf("next expr\n");
     expr_node_t* next_expr = parse_expression(context, tok);
     if (!next_expr) return NULL;
-    expr_list = (expr_list_node_t*)ast_expr_list_node_init(context, expr_list, next_expr);
+    ast_expr_list_node_add(context, expr_list, next_expr);
+    expr_list->type = next_expr->type;
     if (tok->current_tok != TOKEN_SEMI && tok->current_tok != TOKEN_EOF) {
       parse_expect(tok, 0, "; or EOF");
       return NULL;

@@ -56,6 +56,7 @@ void execute(LLVMModuleRef mod) {
     fprintf(stderr, "%f", ret_double);
   }
   fprintf(stderr, "\n");
+  LLVMDisposeGenericValue(exec_res);
 
   LLVMDisposePassManager(pass);
   LLVMDisposeExecutionEngine(engine);
@@ -83,14 +84,18 @@ int main(int argc, char const *argv[])
     fprintf(dot_file, "Unable to generate dot file");
   }
   fclose(dot_file);
+  free(dot_src);
 
   LLVMModuleRef mod = codegen(context, ast);
   if (!mod) {
     return 0;
   }
+  ast_expr_node_free(ast);
 
   // run it!
   execute(mod);
+
+  context_free(context);
 
   return 0;
 }

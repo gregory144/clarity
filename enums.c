@@ -82,6 +82,9 @@ char* node_to_string(node_t node) {
     case NODE_FUN_CALL:
       sprintf(buf, "function call");
       break;
+    case NODE_FUN_PARAM:
+      sprintf(buf, "function param");
+      break;
     case NODE_BLOCK:
       sprintf(buf, "block");
       break;

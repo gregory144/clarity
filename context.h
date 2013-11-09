@@ -12,4 +12,6 @@ typedef struct context_t {
 
 context_t* context_init();
 
+void context_free(context_t*);
+
 #endif

@@ -15,6 +15,11 @@ graph_vertex_t* graph_vertex_init(graph_t* graph, char* label) {
   return vertex;
 }
 
+void graph_vertex_free(graph_vertex_t* vertex) {
+  free(vertex->label);
+  free(vertex);
+}
+
 graph_edge_t* graph_edge_init(graph_t* graph, graph_vertex_t* start, graph_vertex_t* end) {
   graph_edge_t* edge = (graph_edge_t*)malloc(sizeof(graph_edge_t));
   edge->start = start;
@@ -29,12 +34,12 @@ graph_vertex_t* graphgen_expr(graph_t* graph, expr_node_t* node) {
 }
 
 graph_vertex_t* graphgen_expr_list(graph_t* graph, expr_list_node_t* node) {
-  int rank = graph->rank_counter++;
+  unsigned int rank = graph->rank_counter++;
   graph_vertex_t* ret = NULL;
-  expr_list_node_t* iter;
   graph_vertex_t* prev = NULL;
-  for (iter = node; iter; iter = iter->next) {
-    ret = graphgen_expr(graph, iter->expr);
+  list_item_t* iter = list_iter_init(node->expressions);
+  for (; iter; iter = list_iter(iter)) {
+    ret = graphgen_expr(graph, (expr_node_t*)iter->val);
     ret->rank = rank;
     if (prev) {
       graph_edge_init(graph, prev, ret);
@@ -123,6 +128,15 @@ graph_vertex_t* graphgen_fun_call(graph_t* graph, fun_call_node_t* node) {
   return graph_vertex_init(graph, label);
 }
 
+graph_vertex_t* graphgen_fun_param(graph_t* graph, fun_param_node_t* node) {
+  const char* format_str = "param: %s (%s)";
+  char* type_str = type_to_string(node->type);
+  char* label = malloc(sizeof(char) * (strlen(format_str) - 4 + strlen(type_str) + strlen(node->name) + 1));
+  sprintf(label, format_str, node->name, type_str);
+
+  return graph_vertex_init(graph, label);
+}
+
 graph_vertex_t* graphgen_block(graph_t* graph, block_node_t* node) {
   const char* format_str = "%s (%s)";
   char* type_str = type_to_string(node->type);
@@ -136,17 +150,18 @@ graph_vertex_t* graphgen_block(graph_t* graph, block_node_t* node) {
   graph_edge_init(graph, block_vertex, body_vertex);
 
   // params
-  int rank = graph->rank_counter++;
-  graph_vertex_t* param = NULL;
+  unsigned int rank = graph->rank_counter++;
+  graph_vertex_t* param_vertex = NULL;
   list_item_t* iter = list_iter_init(node->params);
   graph_vertex_t* prev = block_vertex;
   for (; iter; iter = list_iter(iter)) {
-    param = graph_vertex_init(graph, iter->val);
-    param->rank = rank;
+    fun_param_node_t* param = iter->val;
+    param_vertex = graphgen_expr(graph, (expr_node_t*)param);
+    param_vertex->rank = rank;
     if (prev) {
-      graph_edge_init(graph, prev, param);
+      graph_edge_init(graph, prev, param_vertex);
     }
-    prev = param;
+    prev = param_vertex;
   }
   return block_vertex;
 }
@@ -160,70 +175,93 @@ char* graphgen(context_t* context, expr_node_t* ast) {
 
   graphgen_expr(graph, ast);
 
+  // generate representation of graph in DOT format
+
+  // ranks keep some vertices on the same level (horizontally)
+  // (like expression lists, param lists)
   char* ranks = malloc(sizeof(char) * 4096);
+  sprintf(ranks, "");
   // partition vertices by rank
   list_t** vertices_by_rank = malloc(sizeof(list_t**) * graph->rank_counter);
-  for (int i = 0; i < graph->rank_counter; i++) {
+  for (unsigned int i = 0; i < graph->rank_counter; i++) {
     vertices_by_rank[i] = list_init();
   }
-  list_item_t* curr;
-  for (curr = graph->vertices->head; curr; curr = list_iter(curr)) {
-    graph_vertex_t* curr_vertex = curr->val;
+  list_item_t* rank_vertex_iter = list_iter_init(graph->vertices);
+  for (; rank_vertex_iter; rank_vertex_iter = list_iter(rank_vertex_iter)) {
+    graph_vertex_t* curr_vertex = rank_vertex_iter->val;
     list_t* vertices_for_rank = vertices_by_rank[curr_vertex->rank];
     list_push(vertices_for_rank, curr_vertex);
   }
   // skip rank 0 (unassigned rank)
-  for (int i = 1; i < graph->rank_counter; i++) {
+  for (unsigned int i = 1; i < graph->rank_counter; i++) {
     list_t* vertices_for_rank = vertices_by_rank[i];
     if (vertices_for_rank->size > 1) {
-      list_item_t* vertex_for_rank;
       char* rank_str = malloc(sizeof(char) * 512);
       char* vertices_for_rank_str = malloc(sizeof(char) * 512);
-      for (vertex_for_rank = vertices_for_rank->head;
-          vertex_for_rank;
-          vertex_for_rank = list_iter(vertex_for_rank)) {
-        graph_vertex_t* curr_vertex = vertex_for_rank->val;
-        // { rank = same; node1; }
+      sprintf(vertices_for_rank_str, "");
+      list_item_t* vertex_for_rank_iter = list_iter_init(vertices_for_rank);;
+      for (; vertex_for_rank_iter;
+          vertex_for_rank_iter = list_iter(vertex_for_rank_iter)) {
+        graph_vertex_t* curr_vertex = vertex_for_rank_iter->val;
+
         char* vertex_str = malloc(sizeof(char) * 512);
         sprintf(vertex_str, "node%d;", curr_vertex->id);
         strncat(vertices_for_rank_str, vertex_str, strlen(vertex_str));
+        free(vertex_str);
       }
       sprintf(rank_str, "\t{ rank = same; %s}\n", vertices_for_rank_str);
+      free(vertices_for_rank_str);
       strncat(ranks, rank_str, strlen(rank_str));
+      free(rank_str);
     }
   }
+  for (unsigned int i = 0; i < graph->rank_counter; i++) {
+    list_free(vertices_by_rank[i]);
+  }
+  free(vertices_by_rank);
 
+  // add vertices
   char* vertices = malloc(sizeof(char) * 4096);
-  graph_vertex_t* curr_vertex;
-  do {
-    curr_vertex = list_shift(graph->vertices);
-    if (curr_vertex) {
-      char* vertex_str = malloc(sizeof(char) * 512);
-      sprintf(vertex_str, "\tnode%d[label=\"%s\"];\n", curr_vertex->id, curr_vertex->label);
-      if (strlen(vertices) + strlen(vertex_str) >= 4095) {
-        fprintf(stderr, "Buffer not big enough for vertices\n");
-        exit(1);
-      }
-      strncat(vertices, vertex_str, strlen(vertex_str));
+  sprintf(vertices, "");
+  list_item_t* vertex_iter = list_iter_init(graph->vertices);
+  for (; vertex_iter; vertex_iter = list_iter(vertex_iter)) {
+    graph_vertex_t* curr_vertex = vertex_iter->val;
+    char* vertex_str = malloc(sizeof(char) * 512);
+    sprintf(vertex_str, "\tnode%d[label=\"%s\"];\n", curr_vertex->id, curr_vertex->label);
+    if (strlen(vertices) + strlen(vertex_str) >= 4095) {
+      fprintf(stderr, "Buffer not big enough for vertices\n");
+      exit(1);
     }
-  } while (curr_vertex);
+    strncat(vertices, vertex_str, strlen(vertex_str));
+    free(vertex_str);
+  }
 
+  // add edges
   char* edges = malloc(sizeof(char) * 4096);
-  graph_edge_t* curr_edge;
-  do {
-    curr_edge = list_shift(graph->edges);
-    if (curr_edge) {
-      char* edge_str = malloc(sizeof(char) * 512);
-      sprintf(edge_str, "\tnode%d -> node%d;\n", curr_edge->start->id, curr_edge->end->id);
-      if (strlen(edges) + strlen(edge_str) >= 4095) {
-        fprintf(stderr, "Buffer not big enough for edges\n");
-        exit(1);
-      }
-      strncat(edges, edge_str, strlen(edge_str));
+  sprintf(edges, "");
+  list_item_t* edge_iter = list_iter_init(graph->edges);
+  for (; edge_iter; edge_iter = list_iter(edge_iter)) {
+    graph_edge_t* curr_edge = edge_iter->val;
+    char* edge_str = malloc(sizeof(char) * 512);
+    sprintf(edge_str, "\tnode%d -> node%d;\n", curr_edge->start->id, curr_edge->end->id);
+    if (strlen(edges) + strlen(edge_str) >= 4095) {
+      fprintf(stderr, "Buffer not big enough for edges\n");
+      exit(1);
     }
-  } while (curr_edge);
+    strncat(edges, edge_str, strlen(edge_str));
+    free(edge_str);
+  }
 
   char* dot = malloc(sizeof(char) * (strlen(vertices) + strlen(edges) + 256));
   sprintf(dot, "digraph{\n%s\n%s\n%s\n}", ranks, vertices, edges);
+  free(ranks);
+  free(vertices);
+  free(edges);
+  list_visit(graph->vertices, (void(*)(void*))graph_vertex_free);
+  list_free(graph->vertices);
+  list_visit(graph->edges, free);
+  list_free(graph->edges);
+  free(graph);
   return dot;
 }
+

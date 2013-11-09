@@ -8,16 +8,16 @@
 #include "ast.h"
 
 typedef struct {
-  int id_counter;
-  int rank_counter;
+  unsigned int id_counter;
+  unsigned int rank_counter;
   list_t* vertices;
   list_t* edges;
 } graph_t;
 
 typedef struct {
-  int id;
+  unsigned int id;
   char* label;
-  int rank;
+  unsigned int rank;
 } graph_vertex_t;
 
 typedef struct {
@@ -44,6 +44,8 @@ graph_vertex_t* graphgen_unary_op(graph_t* builder, unary_op_node_t* node);
 graph_vertex_t* graphgen_fun_call(graph_t* builder, fun_call_node_t* node);
 
 graph_vertex_t* graphgen_block(graph_t* builder, block_node_t* node);
+
+graph_vertex_t* graphgen_fun_param(graph_t* builder, fun_param_node_t* node);
 
 char* graphgen(context_t* context, expr_node_t* ast);
 

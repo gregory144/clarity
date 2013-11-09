@@ -24,29 +24,6 @@ LLVMModuleRef get_current_module() {
   return mod;
 }
 
-LLVMTypeRef get_function_type(context_t* context, block_node_t* block) {
-  printf("Getting function type\n");
-  LLVMTypeRef ret_type;
-  if (type_equals(block->body->type, type_get(context->type_sys, "Integer"))) {
-    printf("int\n");
-    ret_type = LLVMInt64Type();
-  } else if (type_equals(block->body->type, type_get(context->type_sys, "Float"))) {
-    printf("double\n");
-    ret_type = LLVMDoubleType();
-  } else if (type_equals(block->body->type,type_get(context->type_sys, "Funtion"))) {
-    printf("nested function:\n");
-    expr_list_node_t* expr_list = block->body;
-    while (expr_list->next) {
-      expr_list = expr_list->next;
-    }
-    ret_type = get_function_type(context, (block_node_t*)expr_list);
-  } else {
-    fprintf(stderr, "Unknown type: %s\n", type_to_string(block->body->type));
-    return NULL;
-  }
-  return LLVMFunctionType(ret_type, NULL, 0, 0);
-}
-
 LLVMValueRef codegen_expr(context_t* context, LLVMBuilderRef builder, expr_node_t* node) {
   LLVMValueRef (*fun)() = node->codegen_fun;
   return fun(context, builder, node);
@@ -54,9 +31,9 @@ LLVMValueRef codegen_expr(context_t* context, LLVMBuilderRef builder, expr_node_
 
 LLVMValueRef codegen_expr_list(context_t* context, LLVMBuilderRef builder, expr_list_node_t* node) {
   LLVMValueRef ret = NULL;
-  expr_list_node_t* iter;
-  for (iter = node; iter; iter = iter->next) {
-    ret = codegen_expr(context, builder, iter->expr);
+  list_item_t* iter = list_iter_init(node->expressions);
+  for (; iter; iter = list_iter(iter)) {
+    ret = codegen_expr(context, builder, iter->val);
     LLVMDumpValue(ret);
   }
   return ret;
@@ -78,10 +55,13 @@ LLVMValueRef codegen_ident(context_t* context, LLVMBuilderRef builder, ident_nod
   }
   printf("Loading %s\n", node->name);
   LLVMDumpValue(symbol->value);
-  LLVMValueRef load = LLVMBuildLoad(builder, symbol->value, node->name);
-  printf("loaded:\n");
-  LLVMDumpValue(load);
-  return load;
+  if (!symbol->is_param) {
+    LLVMValueRef load = LLVMBuildLoad(builder, symbol->value, node->name);
+    printf("loaded:\n");
+    LLVMDumpValue(load);
+    return load;
+  }
+  return symbol->value;
 }
 
 LLVMValueRef codegen_fun_decl(context_t* context, LLVMBuilderRef builder, var_decl_node_t* node) {
@@ -113,15 +93,12 @@ LLVMValueRef codegen_var_decl(context_t* context, LLVMBuilderRef builder, var_de
   if (type_equals(node->type, type_get(context->type_sys, "Function"))) {
     return codegen_fun_decl(context, builder, node);
   }
-  LLVMValueRef alloca;
-  if (type_equals(node->type, type_get(context->type_sys, "Integer"))) {
-    alloca = LLVMBuildAlloca(builder, LLVMInt64Type(), node->name);
-  } else if (type_equals(node->type, type_get(context->type_sys, "Float"))) {
-    alloca = LLVMBuildAlloca(builder, LLVMDoubleType(), node->name);
-  } else {
+  LLVMTypeRef type = type_get_ref(node->type);
+  if (type == NULL) {
     fprintf(stderr, "Unrecognized type: %s\n", type_to_string(node->type));
     return NULL;
   }
+  LLVMValueRef alloca = LLVMBuildAlloca(builder, type, node->name);
   LLVMValueRef value = codegen_expr(context, builder, node->rhs);
   if (!value) return NULL;
   LLVMBuildStore(builder, value, alloca); // yields {void}
@@ -217,6 +194,7 @@ LLVMValueRef codegen_unary_op(context_t* context, LLVMBuilderRef builder, unary_
   if (node->op == UNARY_OP_NEGATE) {
     LLVMValueRef rhs = codegen_expr(context, builder, node->rhs);
     if (rhs == NULL) return NULL;
+    // TODO - codegen negate in type
     if (type_equals(node->rhs->type, type_get(context->type_sys, "Integer"))) {
       return LLVMBuildSub(builder, LLVMConstInt(LLVMInt64Type(), 0, 0), rhs, "negative");
     } else if (type_equals(node->rhs->type, type_get(context->type_sys, "Float"))) {
@@ -244,15 +222,42 @@ LLVMValueRef codegen_fun_call(context_t* context, LLVMBuilderRef builder, fun_ca
     return NULL;
   }
 
-  LLVMValueRef args[0];
+  LLVMValueRef params[node->params->size];
+  list_item_t* iter = list_iter_init(node->params);
+  for (unsigned int i = 0; iter; iter = list_iter(iter), i++) {
+    expr_node_t* param_expr = iter->val;
+    params[i] = codegen_expr(context, builder, param_expr);
+  }
   printf("building call\n");
-  return LLVMBuildCall(builder, symbol->value, args, 0, "fun_res");
+  return LLVMBuildCall(builder, symbol->value, params, node->params->size, "fun_res");
+}
+
+LLVMTypeRef codegen_get_fun_type_ref(type_system_t* type_sys, block_node_t* block) {
+  printf("Getting function type\n");
+  LLVMTypeRef ret_type = type_get_ref(block->body->type);
+  if (ret_type == NULL && type_equals(block->body->type, type_get(type_sys, "Funtion"))) {
+    expr_list_node_t* expr_list = block->body;
+    list_item_t* iter = list_iter_init(expr_list->expressions);
+    for (; iter && list_iter(iter); iter = list_iter(iter));
+    ret_type = codegen_get_fun_type_ref(type_sys, (block_node_t*)iter->val);
+  } else if (ret_type == NULL) {
+    fprintf(stderr, "Unknown type: %s\n", type_to_string(block->body->type));
+    return NULL;
+  }
+  size_t param_count = block->params->size;
+  LLVMTypeRef param_types[param_count];
+  list_item_t* iter = list_iter_init(block->params);
+  for (unsigned int i = 0; iter; iter = list_iter(iter), i++) {
+    fun_param_node_t* param = iter->val;
+    param_types[i] = type_get_ref(param->type);
+  }
+  return LLVMFunctionType(ret_type, param_types, param_count, false);
 }
 
 LLVMValueRef codegen_block(context_t* context, LLVMBuilderRef builder, block_node_t* node, char* function_name) {
   /*LLVMTypeRef* params = NULL;*/
   if (function_name == NULL) {
-    function_name = (char*) malloc(sizeof(char) * 512);
+    function_name = malloc(sizeof(char) * 512);
     sprintf(function_name, "function%d", function_index);
     function_index++;
   }
@@ -260,21 +265,38 @@ LLVMValueRef codegen_block(context_t* context, LLVMBuilderRef builder, block_nod
   printf("codegen_block\n");
   LLVMBasicBlockRef prev_block = LLVMGetInsertBlock(builder);
 
-  LLVMTypeRef function_type = get_function_type(context, node);
+  LLVMTypeRef function_type = codegen_get_fun_type_ref(context->type_sys, node);
   LLVMValueRef func = LLVMAddFunction(get_current_module(), function_name, function_type);
+
+  LLVMValueRef* params = malloc(node->params->size * sizeof(params));
+  LLVMGetParams(func, params);
+  list_item_t* iter = list_iter_init(node->params);
+  for (unsigned int i = 0; iter; iter = list_iter(iter), i++) {
+    fun_param_node_t* param = iter->val;
+    LLVMValueRef param_value = params[i];
+    LLVMSetValueName(param_value, param->name);
+    symbol_t* symbol = symbol_get(context->symbol_table, param->name);
+    if (!symbol) {
+      fprintf(stderr, "Could not find symbol for parameter: %s\n", param->name);
+      return NULL;
+    }
+    symbol->value = param_value;
+  }
   LLVMSetFunctionCallConv(func, LLVMCCallConv);
 
   LLVMBasicBlockRef entry = LLVMAppendBasicBlock(func, "entry");
   LLVMPositionBuilderAtEnd(builder, entry);
 
-  printf("Building block body\n");
   LLVMValueRef body = codegen_expr_list(context, builder, node->body);
-  printf("Built block body\n");
 
   LLVMBuildRet(builder, body);
 
   LLVMPositionBuilderAtEnd(builder, prev_block);
   return func;
+}
+
+LLVMValueRef codegen_fun_param(context_t* context, LLVMBuilderRef builder, fun_param_node_t* node) {
+  return NULL;
 }
 
 LLVMModuleRef codegen(context_t* context, expr_node_t* ast) {
@@ -283,18 +305,14 @@ LLVMModuleRef codegen(context_t* context, expr_node_t* ast) {
 
   mod = LLVMModuleCreateWithName("tool_mod");
 
-  printf("Node type: %s\n", node_to_string(ast->node_type));
+  char* node_str = node_to_string(ast->node_type);
+  printf("Node type: %s\n", node_str);
+  free(node_str);
   printf("type: %s\n", type_to_string(ast->type));
 
   LLVMTypeRef main_args[] = {};
-  LLVMTypeRef ret_type;
-  if (type_equals(ast->type, type_get(context->type_sys, "Integer"))) {
-    printf("Return type: int\n");
-    ret_type = LLVMInt64Type();
-  } else if (type_equals(ast->type, type_get(context->type_sys, "Float"))) {
-    printf("Return type: float\n");
-    ret_type = LLVMDoubleType();
-  } else {
+  LLVMTypeRef ret_type = type_get_ref(ast->type);
+  if (ret_type == NULL) {
     fprintf(stderr, "Unable to determine return type of program: %s\n", type_to_string(ast->type));
     return NULL;
   }

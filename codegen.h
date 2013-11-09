@@ -28,6 +28,8 @@ LLVMValueRef codegen_fun_call(context_t* context, LLVMBuilderRef builder, fun_ca
 
 LLVMValueRef codegen_block(context_t* context, LLVMBuilderRef builder, block_node_t* node, char* function_name);
 
+LLVMValueRef codegen_fun_param(context_t* context, LLVMBuilderRef builder, fun_param_node_t* node);
+
 LLVMModuleRef codegen(context_t* context, expr_node_t* ast);
 
 #endif

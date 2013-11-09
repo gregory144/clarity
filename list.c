@@ -4,15 +4,16 @@
 #include "list.h"
 
 list_item_t* list_item_init(void* val) {
-  list_item_t* list_item = (list_item_t*)malloc(sizeof(list_item_t));
+  list_item_t* list_item = malloc(sizeof(list_item_t));
   list_item->val = val;
   list_item->next = NULL;
   return list_item;
 }
 
 list_t* list_init() {
-  list_t* list = (list_t*)malloc(sizeof(list_t));
+  list_t* list = malloc(sizeof(list_t));
   list->head = NULL;
+  list->size = 0;
   return list;
 }
 
@@ -89,6 +90,10 @@ void* list_pop(list_t* list) {
 }
 
 list_item_t* list_iter_init(list_t* list) {
+  if (list == NULL) {
+    fprintf(stderr, "Unable to iterate: null list provided\n");
+    return NULL;
+  }
   return list->head;
 }
 
@@ -97,4 +102,21 @@ list_item_t* list_iter(list_item_t* curr) {
     return curr->next;
   }
   return NULL;
+}
+
+void list_visit(list_t* list, void (*visit)(void* val)) {
+  list_item_t* iter = list_iter_init(list);
+  for (; iter; iter = list_iter(iter)) {
+    visit(iter->val);
+  }
+}
+
+void list_free(list_t* list) {
+  list_item_t* list_item = list->head;
+  while (list_item) {
+    list_item_t* to_free = list_item;
+    list_item = list_item->next;
+    free(to_free);
+  }
+  free(list);
 }

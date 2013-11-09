@@ -10,7 +10,7 @@ typedef struct list_item_t {
 
 typedef struct {
   list_item_t* head;
-  int size;
+  size_t size;
 } list_t;
 
 list_t* list_init();
@@ -30,5 +30,9 @@ void* list_shift(list_t* list);
 list_item_t* list_iter_init(list_t*);
 
 list_item_t* list_iter(list_item_t*);
+
+void list_visit(list_t*, void (*)(void*));
+
+void list_free(list_t*);
 
 #endif
