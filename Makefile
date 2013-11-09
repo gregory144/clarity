@@ -40,5 +40,5 @@ graph: graph.dot
 	dot -Tsvg graph.dot > graph.svg
 
 clean:
-	-rm -rf *.o tool
+	-rm -rf *.o tool graph.svg
 .PHONY: clean
