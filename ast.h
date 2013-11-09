@@ -72,6 +72,7 @@ typedef struct {
   type_t* type;
   expr_list_node_t* body;
   list_t* params;
+  symbol_table_t* scope;
 } block_node_t;
 
 typedef struct {
@@ -131,7 +132,7 @@ unary_op_node_t* ast_unary_op_node_init(context_t* context, unary_op_t op, expr_
 
 fun_call_node_t* ast_fun_call_node_init(context_t* context, char* name, list_t* params);
 
-block_node_t* ast_block_node_init(context_t* context, list_t* param_list, expr_list_node_t* fun_body);
+block_node_t* ast_block_node_init(context_t* context, list_t* param_list, symbol_table_t* scope, expr_list_node_t* fun_body);
 
 fun_param_node_t* ast_fun_param_node_init(context_t* context, char* name, type_t* type);
 

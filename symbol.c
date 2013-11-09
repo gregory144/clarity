@@ -9,6 +9,7 @@
 symbol_table_t* symbol_init() {
   symbol_table_t* symbol_table = malloc(sizeof(symbol_table_t));
   symbol_table->symbols = list_init();
+  symbol_table->parent = NULL;
   return symbol_table;
 }
 
@@ -23,7 +24,21 @@ void symbol_table_free(symbol_table_t* symbol_table) {
   free(symbol_table);
 }
 
+symbol_table_t* symbol_create_scope(symbol_table_t* parent) {
+  symbol_table_t* scope = symbol_init();
+  scope->parent = parent;
+  return scope;
+}
+
 symbol_t* symbol_get(symbol_table_t* symbol_table, char* name) {
+  symbol_t* symbol = symbol_get_in_scope(symbol_table, name);
+  if (symbol)
+    return symbol;
+  return symbol_get(symbol_table->parent, name);
+}
+
+symbol_t* symbol_get_in_scope(symbol_table_t* symbol_table, char* name) {
+  if (!symbol_table) return NULL;
   list_item_t* iter = list_iter_init(symbol_table->symbols);
   for (; iter; iter = list_iter(iter)) {
     symbol_t* candidate = iter->val;

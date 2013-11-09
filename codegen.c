@@ -66,26 +66,29 @@ LLVMValueRef codegen_ident(context_t* context, LLVMBuilderRef builder, ident_nod
 
 LLVMValueRef codegen_fun_decl(context_t* context, LLVMBuilderRef builder, var_decl_node_t* node) {
   block_node_t* block_node = (block_node_t*)node->rhs;
+  symbol_table_t* parent_scope = context->symbol_table;
+  context->symbol_table = block_node->scope;
   LLVMValueRef function_expr = codegen_block(context, builder, block_node, node->name);
-  if (!function_expr) return NULL;
+  if (function_expr) {
+    /*LLVMTypeRef function_type = get_function_type(context, block_node);*/
+    /*if (function_type == NULL) {*/
+      /*return NULL;*/
+    /*}*/
+    /*LLVMTypeRef function_pointer_type = LLVMPointerType(function_type, 0);*/
+    /*LLVMValueRef alloca = LLVMBuildAlloca(builder, function_pointer_type, node->name);*/
+    /*printf("Func Alloca:\n");*/
+    /*LLVMDumpValue(alloca);*/
 
-  /*LLVMTypeRef function_type = get_function_type(context, block_node);*/
-  /*if (function_type == NULL) {*/
-    /*return NULL;*/
-  /*}*/
-  /*LLVMTypeRef function_pointer_type = LLVMPointerType(function_type, 0);*/
-  /*LLVMValueRef alloca = LLVMBuildAlloca(builder, function_pointer_type, node->name);*/
-  /*printf("Func Alloca:\n");*/
-  /*LLVMDumpValue(alloca);*/
+    /*LLVMBuildStore(builder, function_value, alloca); // yields {void}*/
 
-  /*LLVMBuildStore(builder, function_value, alloca); // yields {void}*/
-
-  symbol_t* symbol = symbol_get(context->symbol_table, node->name);
-  if (!symbol) {
-    fprintf(stderr, "Unable to find symbol: %s\n", node->name);
-    return NULL;
+    symbol_t* symbol = symbol_get(context->symbol_table, node->name);
+    if (!symbol) {
+      fprintf(stderr, "Unable to find symbol: %s\n", node->name);
+    } else {
+      symbol->value = function_expr;
+    }
   }
-  symbol->value = function_expr;
+  context->symbol_table = parent_scope;
   return function_expr;
 }
 

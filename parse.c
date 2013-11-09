@@ -187,7 +187,7 @@ expr_node_t* parse_expression_var_decl(context_t* context, tokenizer_t *tok, cha
   expr_node_t* rhs = parse_expression_primary(context, tok, 0);
   if (!rhs) return NULL;
 
-  symbol_t* symbol = symbol_get(context->symbol_table, ident);
+  symbol_t* symbol = symbol_get_in_scope(context->symbol_table, ident);
   if (symbol != NULL) {
     fprintf(stderr, "Cannot redeclare variable: %s\n", ident);
     return NULL;
@@ -297,15 +297,23 @@ list_t* parse_param_list(context_t* context, tokenizer_t *tok) {
 }
 
 expr_node_t* parse_block(context_t* context, tokenizer_t *tok) {
+  symbol_table_t* parent_scope = context->symbol_table;
+  symbol_table_t* current_scope = symbol_create_scope(context->symbol_table);
+  context->symbol_table = current_scope;
+
   list_t* param_list = parse_param_list(context, tok);
-  if (param_list == NULL) return NULL;
-  expr_list_node_t* function_body = parse_expression_list(context, tok);
-  if (function_body == NULL)  return NULL;
-  if (!parse_expect(tok, TOKEN_CLOSE_BRACE, "}")) {
-    return NULL;
+  expr_node_t* ret = NULL;
+  if (param_list != NULL) {
+    expr_list_node_t* function_body = parse_expression_list(context, tok);
+    if (function_body != NULL) {
+      if (parse_expect(tok, TOKEN_CLOSE_BRACE, "}")) {
+        parse_get_tok_next(tok);
+        ret = (expr_node_t*)ast_block_node_init(context, param_list, current_scope, function_body);
+      }
+    }
   }
-  parse_get_tok_next(tok);
-  return (expr_node_t*)ast_block_node_init(context, param_list, function_body);
+  context->symbol_table = parent_scope;
+  return ret;
 }
 
 expr_node_t* parse_expression_secondary(context_t* context, tokenizer_t *tok) {

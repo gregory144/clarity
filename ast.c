@@ -185,10 +185,11 @@ void ast_block_node_free(block_node_t* node) {
   ast_expr_list_node_free(node->body);
   list_visit(node->params, (void(*)(void*))ast_expr_node_free);
   list_free(node->params);
+  symbol_table_free(node->scope);
   free(node);
 }
 
-block_node_t* ast_block_node_init(context_t* context, list_t* param_list, expr_list_node_t* fun_body) {
+block_node_t* ast_block_node_init(context_t* context, list_t* param_list, symbol_table_t* scope, expr_list_node_t* fun_body) {
   block_node_t* node = (block_node_t*)malloc(sizeof(block_node_t));
   node->node_type = NODE_BLOCK;
   node->codegen_fun = codegen_block;
@@ -197,6 +198,7 @@ block_node_t* ast_block_node_init(context_t* context, list_t* param_list, expr_l
   node->type = type_get(context->type_sys, "Function");
   node->body = fun_body;
   node->params = param_list;
+  node->scope = scope;
   return node;
 }
 
