@@ -1,40 +1,23 @@
+PROGRAM = tool
+C_FILES := $(wildcard *.c)
+OBJS := $(patsubst %.c, %.o, $(C_FILES))
+
 CC=clang
 CFLAGS=-g `llvm-config --cflags` -O0
 LD=clang++
 LDFLAGS=`llvm-config --libs --cflags --ldflags core analysis executionengine jit interpreter native`
 
-tool: tool.o ast.o parse.o codegen.o symbol.o enums.o list.o graphgen.o context.o type.o
-	$(LD) tool.o ast.o parse.o codegen.o symbol.o enums.o list.o graphgen.o context.o type.o $(LDFLAGS) -o tool -rdynamic
+$(PROGRAM): $(OBJS)
+	$(LD) $^ $(LDFLAGS) -o $@ -rdynamic
 
-tool.o: tool.c
-	$(CC) $(CFLAGS) -c tool.c
+# These are the pattern matching rules. In addition to the automatic
+# variables used here, the variable $* that matches whatever % stands for
+# can be useful in special cases.
+%.o: %.c
+		$(CC) $(CFLAGS) -c $< -o $@
 
-parse.o: parse.c parse.h
-	$(CC) $(CFLAGS) -c parse.c
-
-ast.o: ast.c ast.h
-	$(CC) $(CFLAGS) -c ast.c
-
-codegen.o: codegen.c codegen.h
-	$(CC) $(CFLAGS) -c codegen.c
-
-symbol.o: symbol.c symbol.h
-	$(CC) $(CFLAGS) -c symbol.c
-
-enums.o: enums.c enums.h
-	$(CC) $(CFLAGS) -c enums.c
-
-list.o: list.c list.h
-	$(CC) $(CFLAGS) -c list.c
-
-graphgen.o: graphgen.c graphgen.h
-	$(CC) $(CFLAGS) -c graphgen.c
-
-context.o: context.c context.h
-	$(CC) $(CFLAGS) -c context.c
-
-type.o: type.c type.h
-	$(CC) $(CFLAGS) -c type.c
+%: %.c
+		$(CC) $(CFLAGS) -o $@ $<
 
 graph: graph.dot
 	dot -Tsvg graph.dot > graph.svg
@@ -42,3 +25,4 @@ graph: graph.dot
 clean:
 	-rm -rf *.o tool graph.svg
 .PHONY: clean
+
