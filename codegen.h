@@ -16,6 +16,8 @@ LLVMValueRef codegen_const_int(context_t* context, LLVMBuilderRef builder, const
 
 LLVMValueRef codegen_const_float(context_t* context, LLVMBuilderRef builder, const_float_node_t* node);
 
+LLVMValueRef codegen_const_bool(context_t* context, LLVMBuilderRef builder, const_bool_node_t* node);
+
 LLVMValueRef codegen_ident(context_t* context, LLVMBuilderRef builder, ident_node_t* node);
 
 LLVMValueRef codegen_var_decl(context_t* context, LLVMBuilderRef builder, var_decl_node_t* node);

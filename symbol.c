@@ -31,6 +31,7 @@ symbol_table_t* symbol_create_scope(symbol_table_t* parent) {
 }
 
 symbol_t* symbol_get(symbol_table_t* symbol_table, char* name) {
+  if (!symbol_table) return NULL;
   symbol_t* symbol = symbol_get_in_scope(symbol_table, name);
   if (symbol)
     return symbol;

@@ -51,6 +51,15 @@ typedef struct {
   void* graphgen_fun;
   void* free_fun;
   type_t* type;
+  bool val;
+} const_bool_node_t;
+
+typedef struct {
+  node_t node_type;
+  void* codegen_fun;
+  void* graphgen_fun;
+  void* free_fun;
+  type_t* type;
   char* name;
 } ident_node_t;
 
@@ -121,6 +130,8 @@ expr_list_node_t* ast_expr_list_node_add(context_t* context, expr_list_node_t* l
 const_int_node_t* ast_const_int_node_init(context_t* context, long val);
 
 const_float_node_t* ast_const_float_node_init(context_t* context, double val);
+
+const_bool_node_t* ast_const_bool_node_init(context_t* context, bool val);
 
 ident_node_t* ast_ident_node_init(context_t* context, char* name);
 

@@ -94,6 +94,9 @@ token_t parse_get_tok(tokenizer_t* tok) {
 #define TRYMATCH(s, ret) \
 if (strcmp(tok->ident, s) == 0) return ret
 
+    TRYMATCH("true", TOKEN_TRUE);
+    TRYMATCH("false", TOKEN_FALSE);
+
     return TOKEN_IDENT;
   } else if (isdigit(c) || c == '.') { // number
     char* ident = tok->ident;
@@ -335,6 +338,14 @@ expr_node_t* parse_expression_secondary(context_t* context, tokenizer_t *tok) {
     expr_node_t* float_node = (expr_node_t*)ast_const_float_node_init(context, tok->float_val);
     parse_get_tok_next(tok);
     return float_node;
+  } else if (tok->current_tok == TOKEN_TRUE) {
+    expr_node_t* bool_node = (expr_node_t*)ast_const_bool_node_init(context, true);
+    parse_get_tok_next(tok);
+    return bool_node;
+  } else if (tok->current_tok == TOKEN_FALSE) {
+    expr_node_t* bool_node = (expr_node_t*)ast_const_bool_node_init(context, false);
+    parse_get_tok_next(tok);
+    return bool_node;
   } else if (tok->current_tok == TOKEN_IDENT) {
     expr_node_t* ret = NULL;
     char* ident = strdup(tok->ident);

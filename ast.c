@@ -61,6 +61,17 @@ const_float_node_t* ast_const_float_node_init(context_t* context, double val) {
   return node;
 }
 
+const_bool_node_t* ast_const_bool_node_init(context_t* context, bool val) {
+  const_bool_node_t* node = (const_bool_node_t*)malloc(sizeof(const_bool_node_t));
+  node->node_type = NODE_CONST_BOOL;
+  node->codegen_fun = codegen_const_bool;
+  node->graphgen_fun = graphgen_const_bool;
+  node->free_fun = NULL;
+  node->type = type_get(context->type_sys, "Boolean");
+  node->val = val;
+  return node;
+}
+
 void ast_ident_node_free(ident_node_t* node) {
   free(node->name);
   free(node);

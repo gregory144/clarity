@@ -8,6 +8,7 @@
 typedef enum {
   NODE_INVALID,
   NODE_BINARY_OP,
+  NODE_CONST_BOOL,
   NODE_CONST_FLOAT,
   NODE_CONST_INT,
   NODE_EXPR_LIST,
@@ -38,6 +39,8 @@ typedef enum {
   TOKEN_STAR,
   TOKEN_COMMA,
   TOKEN_COLON,
+  TOKEN_TRUE,
+  TOKEN_FALSE,
 } token_t;
 
 typedef enum {

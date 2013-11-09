@@ -33,6 +33,8 @@ graph_vertex_t* graphgen_const_int(graph_t* builder, const_int_node_t* node);
 
 graph_vertex_t* graphgen_const_float(graph_t* builder, const_float_node_t* node);
 
+graph_vertex_t* graphgen_const_bool(graph_t* builder, const_bool_node_t* node);
+
 graph_vertex_t* graphgen_ident(graph_t* builder, ident_node_t* node);
 
 graph_vertex_t* graphgen_var_decl(graph_t* builder, var_decl_node_t* node);

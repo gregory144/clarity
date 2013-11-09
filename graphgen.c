@@ -62,6 +62,12 @@ graph_vertex_t* graphgen_const_float(graph_t* graph, const_float_node_t* node) {
   return graph_vertex_init(graph, label);
 }
 
+graph_vertex_t* graphgen_const_bool(graph_t* graph, const_bool_node_t* node) {
+  char* label = (char*)malloc(sizeof(char) * 4096);
+  sprintf(label, "%s (%s)", node->val ? "true" : "false", type_to_string(node->type));
+  return graph_vertex_init(graph, label);
+}
+
 graph_vertex_t* graphgen_ident(graph_t* graph, ident_node_t* node) {
   const char* format_str = "%s (%s)";
   char* type_str = type_to_string(node->type);

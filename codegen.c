@@ -40,11 +40,15 @@ LLVMValueRef codegen_expr_list(context_t* context, LLVMBuilderRef builder, expr_
 }
 
 LLVMValueRef codegen_const_int(context_t* context, LLVMBuilderRef builder, const_int_node_t* node) {
-  return LLVMConstInt(LLVMInt64Type(), node->val, 0);
+  return LLVMConstInt(node->type->get_ref(), node->val, 0);
 }
 
 LLVMValueRef codegen_const_float(context_t* context, LLVMBuilderRef builder, const_float_node_t* node) {
-  return LLVMConstReal(LLVMDoubleType(), node->val);
+  return LLVMConstReal(node->type->get_ref(), node->val);
+}
+
+LLVMValueRef codegen_const_bool(context_t* context, LLVMBuilderRef builder, const_bool_node_t* node) {
+  return LLVMConstInt(node->type->get_ref(), node->val ? 1 : 0, 0);
 }
 
 LLVMValueRef codegen_ident(context_t* context, LLVMBuilderRef builder, ident_node_t* node) {
@@ -135,6 +139,7 @@ LLVMValueRef codegen_bin_op(context_t* context, LLVMBuilderRef builder, bin_op_n
   if (lhs == NULL) return NULL;
   // cast both to float if their types don't match
   type_t* res_type;
+
   type_t* type_int = type_get(context->type_sys, "Integer");
   type_t* type_float = type_get(context->type_sys, "Float");
   bool lhs_is_int = type_equals(node->lhs->type, type_int);
@@ -142,11 +147,19 @@ LLVMValueRef codegen_bin_op(context_t* context, LLVMBuilderRef builder, bin_op_n
   bool rhs_is_int = type_equals(node->rhs->type, type_int);
   bool rhs_is_float = type_equals(node->rhs->type, type_float);
   if (lhs_is_int && rhs_is_float) {
-    lhs = LLVMBuildSIToFP(builder, lhs, LLVMDoubleType(), "lhstofloat");
     res_type = type_float;
+    lhs = node->lhs->type->convert(context->type_sys, builder, lhs, res_type);
+    if (!lhs) {
+      fprintf(stderr, "Unable to convert %s to %s\n", node->lhs->type->name, res_type->name);
+      return NULL;
+    }
   } else if (lhs_is_float && rhs_is_int) {
-    rhs = LLVMBuildSIToFP(builder, rhs, LLVMDoubleType(), "rhstofloat");
     res_type = type_float;
+    rhs = node->rhs->type->convert(context->type_sys, builder, rhs, res_type);
+    if (!rhs) {
+      fprintf(stderr, "Unable to convert %s to %s\n", node->rhs->type->name, res_type->name);
+      return NULL;
+    }
   } else if (lhs_is_float && rhs_is_float) {
     res_type = type_float;
   } else if (lhs_is_int && rhs_is_int) {
