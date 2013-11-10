@@ -32,8 +32,11 @@ char* token_to_string(token_t token) {
     case TOKEN_PERCENT:
       sprintf(buf, "%%");
       break;
-    case TOKEN_EQUAL:
+    case TOKEN_ASSIGN:
       sprintf(buf, "=");
+      break;
+    case TOKEN_EQUAL:
+      sprintf(buf, "==");
       break;
     case TOKEN_OPEN_PAREN:
       sprintf(buf, "(");
@@ -55,6 +58,18 @@ char* token_to_string(token_t token) {
       break;
     case TOKEN_COMMA:
       sprintf(buf, ",");
+      break;
+    case TOKEN_TRUE:
+      sprintf(buf, "true");
+      break;
+    case TOKEN_FALSE:
+      sprintf(buf, "false");
+      break;
+    case TOKEN_IF:
+      sprintf(buf, "if");
+      break;
+    case TOKEN_ELSE:
+      sprintf(buf, "else");
       break;
     case TOKEN_INVALID:
     default:
@@ -88,6 +103,9 @@ char* node_to_string(node_t node) {
     case NODE_BLOCK:
       sprintf(buf, "block");
       break;
+    case NODE_IF:
+      sprintf(buf, "if");
+      break;
     case NODE_IDENT:
       sprintf(buf, "ident");
       break;
@@ -111,7 +129,7 @@ char* bin_op_to_string(bin_op_t op) {
     case BIN_OP_DIV:
       sprintf(buf, "/");
       break;
-    case BIN_OP_EQ:
+    case BIN_OP_ASSIGN:
       sprintf(buf, "=");
       break;
     case BIN_OP_MINUS:
@@ -125,6 +143,21 @@ char* bin_op_to_string(bin_op_t op) {
       break;
     case BIN_OP_PLUS:
       sprintf(buf, "+");
+      break;
+    case BIN_OP_EQ:
+      sprintf(buf, "==");
+      break;
+    case BIN_OP_LT:
+      sprintf(buf, "<");
+      break;
+    case BIN_OP_LTE:
+      sprintf(buf, "<=");
+      break;
+    case BIN_OP_GT:
+      sprintf(buf, ">");
+      break;
+    case BIN_OP_GTE:
+      sprintf(buf, ">=");
       break;
     case BIN_OP_INVALID:
     default:

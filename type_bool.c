@@ -5,6 +5,9 @@ LLVMTypeRef type_bool_get_ref() {
 }
 
 LLVMValueRef type_bool_convert(type_system_t* type_sys, LLVMBuilderRef builder, LLVMValueRef val, type_t* to_type) {
+  if (type_name_is(to_type, "Boolean")) {
+    return val;
+  }
   if (type_name_is(to_type, "Float")) {
     type_t* type_int = type_get(type_sys, "Integer");
     LLVMValueRef intermediate = type_int->convert(type_sys, builder, val, type_int);

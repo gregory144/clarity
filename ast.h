@@ -25,6 +25,7 @@ typedef struct expr_list_node_t {
   void* free_fun;
   type_t* type;
   list_t* expressions;
+  symbol_table_t* scope;
 } expr_list_node_t;
 
 typedef struct {
@@ -81,7 +82,6 @@ typedef struct {
   type_t* type;
   expr_list_node_t* body;
   list_t* params;
-  symbol_table_t* scope;
 } block_node_t;
 
 typedef struct {
@@ -123,7 +123,18 @@ typedef struct {
   char* name;
 } fun_param_node_t;
 
-expr_list_node_t* ast_expr_list_node_init(context_t* context);
+typedef struct {
+  node_t node_type;
+  void* codegen_fun;
+  void* graphgen_fun;
+  void* free_fun;
+  type_t* type;
+  expr_node_t* conditional;
+  expr_list_node_t* true_expr;
+  expr_list_node_t* false_expr;
+} if_node_t;
+
+expr_list_node_t* ast_expr_list_node_init(context_t* context, symbol_table_t* scope);
 
 expr_list_node_t* ast_expr_list_node_add(context_t* context, expr_list_node_t* list, expr_node_t* expr);
 
@@ -143,9 +154,11 @@ unary_op_node_t* ast_unary_op_node_init(context_t* context, unary_op_t op, expr_
 
 fun_call_node_t* ast_fun_call_node_init(context_t* context, char* name, list_t* params);
 
-block_node_t* ast_block_node_init(context_t* context, list_t* param_list, symbol_table_t* scope, expr_list_node_t* fun_body);
+block_node_t* ast_block_node_init(context_t* context, list_t* param_list, expr_list_node_t* fun_body);
 
 fun_param_node_t* ast_fun_param_node_init(context_t* context, char* name, type_t* type);
+
+if_node_t* ast_if_node_init(context_t* context, expr_node_t* conditional, expr_list_node_t* true_expr, expr_list_node_t* false_expr);
 
 void ast_expr_node_free(expr_node_t* node);
 

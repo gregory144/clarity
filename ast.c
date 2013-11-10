@@ -20,10 +20,13 @@ void ast_expr_node_free(expr_node_t* node) {
 void ast_expr_list_node_free(expr_list_node_t* node) {
   list_visit(node->expressions, (void(*)(void*))ast_expr_node_free);
   list_free(node->expressions);
+  if (node->scope->parent != NULL) { // don't free the global scope
+    symbol_table_free(node->scope);
+  }
   free(node);
 }
 
-expr_list_node_t* ast_expr_list_node_init(context_t* context) {
+expr_list_node_t* ast_expr_list_node_init(context_t* context, symbol_table_t* scope) {
   expr_list_node_t* node = (expr_list_node_t*)malloc(sizeof(expr_list_node_t));
   node->node_type = NODE_EXPR_LIST;
   node->codegen_fun = codegen_expr_list;
@@ -31,6 +34,7 @@ expr_list_node_t* ast_expr_list_node_init(context_t* context) {
   node->free_fun = ast_expr_list_node_free;
   node->type = NULL;
   node->expressions = list_init();
+  node->scope = scope;
   return node;
 }
 
@@ -119,6 +123,16 @@ void ast_bin_op_node_free(bin_op_node_t* node) {
   free(node);
 }
 
+/*
+ * float * float = float
+ * int * int = int
+ * float * int = float
+ *
+ * float < float = boolean
+ * int < int = boolean
+ * float < int = boolean
+ */
+
 bin_op_node_t* ast_bin_op_node_init(context_t* context, bin_op_t op, expr_node_t* lhs, expr_node_t* rhs) {
   bin_op_node_t* node = (bin_op_node_t*)malloc(sizeof(bin_op_node_t));
   node->node_type = NODE_BINARY_OP;
@@ -135,6 +149,10 @@ bin_op_node_t* ast_bin_op_node_init(context_t* context, bin_op_t op, expr_node_t
   } else {
     fprintf(stderr, "Unable to determine final type of binary operation\n");
     return NULL;
+  }
+  if (op == BIN_OP_EQ || op == BIN_OP_GT || op == BIN_OP_LT ||
+      op == BIN_OP_GTE || op == BIN_OP_LTE) {
+    node->type = type_get(context->type_sys, "Boolean");
   }
   node->op = op;
   node->lhs = lhs;
@@ -173,7 +191,7 @@ fun_call_node_t* ast_fun_call_node_init(context_t* context, char* name, list_t* 
 
   symbol_t* symbol = symbol_get(context->symbol_table, name);
   if (!symbol) {
-    fprintf(stderr, "ast_fun_call_node_init: Unable to find symbol with name: %s\n", node->name);
+    fprintf(stderr, "ast_fun_call_node_init: Unable to find symbol with name: %s\n", name);
     return NULL;
   }
   if (!type_equals(symbol->type, type_get(context->type_sys, "Function"))) {
@@ -196,11 +214,10 @@ void ast_block_node_free(block_node_t* node) {
   ast_expr_list_node_free(node->body);
   list_visit(node->params, (void(*)(void*))ast_expr_node_free);
   list_free(node->params);
-  symbol_table_free(node->scope);
   free(node);
 }
 
-block_node_t* ast_block_node_init(context_t* context, list_t* param_list, symbol_table_t* scope, expr_list_node_t* fun_body) {
+block_node_t* ast_block_node_init(context_t* context, list_t* param_list, expr_list_node_t* fun_body) {
   block_node_t* node = (block_node_t*)malloc(sizeof(block_node_t));
   node->node_type = NODE_BLOCK;
   node->codegen_fun = codegen_block;
@@ -209,7 +226,6 @@ block_node_t* ast_block_node_init(context_t* context, list_t* param_list, symbol
   node->type = type_get(context->type_sys, "Function");
   node->body = fun_body;
   node->params = param_list;
-  node->scope = scope;
   return node;
 }
 
@@ -226,5 +242,28 @@ fun_param_node_t* ast_fun_param_node_init(context_t* context, char* name, type_t
   node->free_fun = ast_fun_param_node_free;
   node->type = type;
   node->name = name;
+  return node;
+}
+
+void ast_if_node_free(if_node_t* node) {
+  ast_expr_node_free(node->conditional);
+  ast_expr_list_node_free(node->true_expr);
+  if (node->false_expr) {
+    ast_expr_list_node_free(node->false_expr);
+  }
+  free(node);
+}
+
+if_node_t* ast_if_node_init(context_t* context, expr_node_t* conditional, expr_list_node_t* true_expr, expr_list_node_t* false_expr) {
+  if_node_t* node = (if_node_t*)malloc(sizeof(if_node_t));
+  node->node_type = NODE_IF;
+  node->codegen_fun = codegen_if;
+  node->graphgen_fun = graphgen_if;
+  node->free_fun = ast_if_node_free;
+  // TODO - what if true_expr & false_expr types don't match?
+  node->type = true_expr->type;
+  node->conditional = conditional;
+  node->true_expr = true_expr;
+  node->false_expr = false_expr;
   return node;
 }

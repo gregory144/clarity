@@ -49,6 +49,8 @@ graph_vertex_t* graphgen_block(graph_t* builder, block_node_t* node);
 
 graph_vertex_t* graphgen_fun_param(graph_t* builder, fun_param_node_t* node);
 
+graph_vertex_t* graphgen_if(graph_t* builder, if_node_t* node);
+
 char* graphgen(context_t* context, expr_node_t* ast);
 
 #endif

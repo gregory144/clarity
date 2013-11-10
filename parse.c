@@ -14,7 +14,12 @@ bin_op_t parse_token_to_bin_op(token_t tok) {
     case TOKEN_STAR: return BIN_OP_MULT;
     case TOKEN_FORWARD_SLASH: return BIN_OP_DIV;
     case TOKEN_PERCENT: return BIN_OP_MOD;
+    case TOKEN_ASSIGN: return BIN_OP_ASSIGN;
     case TOKEN_EQUAL: return BIN_OP_EQ;
+    case TOKEN_GT: return BIN_OP_GT;
+    case TOKEN_LT: return BIN_OP_LT;
+    case TOKEN_GTE: return BIN_OP_GTE;
+    case TOKEN_LTE: return BIN_OP_LTE;
     default: return BIN_OP_INVALID;
   }
 }
@@ -33,11 +38,17 @@ bool parse_is_left_associative(bin_op_t bin_op) {
 
 int parse_binary_precedence(bin_op_t op) {
   switch(op) {
-    case BIN_OP_EQ:
+    case BIN_OP_ASSIGN:
       return 2;
+    case BIN_OP_EQ:
+    case BIN_OP_GT:
+    case BIN_OP_GTE:
+    case BIN_OP_LT:
+    case BIN_OP_LTE:
+      return 3;
     case BIN_OP_PLUS:
     case BIN_OP_MINUS:
-      return 3;
+      return 4;
     case BIN_OP_MULT:
     case BIN_OP_DIV:
     case BIN_OP_MOD:
@@ -96,6 +107,8 @@ if (strcmp(tok->ident, s) == 0) return ret
 
     TRYMATCH("true", TOKEN_TRUE);
     TRYMATCH("false", TOKEN_FALSE);
+    TRYMATCH("if", TOKEN_IF);
+    TRYMATCH("else", TOKEN_ELSE);
 
     return TOKEN_IDENT;
   } else if (isdigit(c) || c == '.') { // number
@@ -127,6 +140,7 @@ if (strcmp(tok->ident, s) == 0) return ret
 
   i = c;
   c = fgetc(tok->input);
+  token_t ret = TOKEN_INVALID;
 
   printf("parsing token: %c, %c\n", i, c);
 
@@ -136,7 +150,6 @@ if (strcmp(tok->ident, s) == 0) return ret
     case '*': return TOKEN_STAR;
     case '/': return TOKEN_FORWARD_SLASH;
     case '%': return TOKEN_PERCENT;
-    case '=': return TOKEN_EQUAL;
     case '(': return TOKEN_OPEN_PAREN;
     case ')': return TOKEN_CLOSE_PAREN;
     case '{': return TOKEN_OPEN_BRACE;
@@ -144,6 +157,18 @@ if (strcmp(tok->ident, s) == 0) return ret
     case ';': return TOKEN_SEMI;
     case ':': return TOKEN_COLON;
     case ',': return TOKEN_COMMA;
+    case '=':
+      ret = (c == '=' ? TOKEN_EQUAL : TOKEN_ASSIGN);
+      c = fgetc(tok->input);
+      return ret;
+    case '<':
+      ret = c == '=' ? TOKEN_LTE : TOKEN_LT;
+      c = fgetc(tok->input);
+      return ret;
+    case '>':
+      ret = c == '=' ? TOKEN_GTE : TOKEN_GT;
+      c = fgetc(tok->input);
+      return ret;
   }
   fprintf(stderr, "Unreconized character: %c\n", i);
   return TOKEN_INVALID;
@@ -165,11 +190,23 @@ bool parse_expect(tokenizer_t *tok, token_t expected, char* expected_s) {
 
 expr_node_t* parse_expression_primary(context_t* context, tokenizer_t *tok, int prec);
 
+/*
+ * E --> Exp(0) 
+ * Exp(p) --> P {B Exp(q)} 
+ * P --> U Exp(q) | "(" E ")" | v
+ * B --> "+" | "-"  | "*" |"/" | "^" | "||" | "&&" | "="
+ * U --> "-"
+ */
+expr_node_t* parse_expression(context_t* context, tokenizer_t *tok) {
+  return parse_expression_primary(context, tok, 0);
+}
+
 expr_node_t* parse_expression_unary(context_t* context, tokenizer_t *tok) {
   unary_op_t op = parse_token_to_unary_op(tok->current_tok);
   int prec = parse_unary_precedence(op);
   parse_get_tok_next(tok);
   expr_node_t* rhs = parse_expression_primary(context, tok, prec);
+  if (rhs == NULL) return NULL;
   return (expr_node_t*)ast_unary_op_node_init(context, op, rhs);
 }
 
@@ -183,12 +220,12 @@ expr_node_t* parse_expression_var_decl(context_t* context, tokenizer_t *tok, cha
     type_name = strdup(tok->ident);
     parse_get_tok_next(tok);
   }
-  if (!parse_expect(tok, TOKEN_EQUAL, "assignment")) {
+  if (!parse_expect(tok, TOKEN_ASSIGN, "assignment")) {
     return NULL;
   }
   parse_get_tok_next(tok);
-  expr_node_t* rhs = parse_expression_primary(context, tok, 0);
-  if (!rhs) return NULL;
+  expr_node_t* rhs = parse_expression(context, tok);
+  if (rhs == NULL) return NULL;
 
   symbol_t* symbol = symbol_get_in_scope(context->symbol_table, ident);
   if (symbol != NULL) {
@@ -229,7 +266,7 @@ expr_node_t* parse_fun_call(context_t* context, tokenizer_t* tok, char* ident) {
         parse_get_tok_next(tok);
       }
       printf("Parsing parameter expression\n");
-      expr_node_t* expr = parse_expression_primary(context, tok, 0);
+      expr_node_t* expr = parse_expression(context, tok);
       if (expr == NULL) return NULL;
       list_push(params, expr);
       first_pass = false;
@@ -243,7 +280,7 @@ expr_node_t* parse_fun_call(context_t* context, tokenizer_t* tok, char* ident) {
   return (expr_node_t*)ast_fun_call_node_init(context, ident, params);
 }
 
-expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok);
+expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok, symbol_table_t* scope);
 
 type_t* parse_type_decl(context_t* context, tokenizer_t* tok) {
   if (!parse_expect(tok, TOKEN_IDENT, "type name")) {
@@ -299,6 +336,42 @@ list_t* parse_param_list(context_t* context, tokenizer_t *tok) {
   return params;
 }
 
+expr_list_node_t* parse_wrapped_expression_list(context_t* context, tokenizer_t *tok) {
+  symbol_table_t* parent_scope = context->symbol_table;
+  symbol_table_t* current_scope = symbol_create_scope(context->symbol_table);
+  context->symbol_table = current_scope;
+
+  expr_list_node_t* body = NULL;
+  if (parse_expect(tok, TOKEN_OPEN_BRACE, "{")) {
+    parse_get_tok_next(tok);
+    body = parse_expression_list(context, tok, current_scope);
+    if (body == NULL) return NULL;
+    if (parse_expect(tok, TOKEN_CLOSE_BRACE, "}")) {
+      parse_get_tok_next(tok);
+    }
+  }
+
+  context->symbol_table = parent_scope;
+  return body;
+}
+
+expr_node_t* parse_if(context_t* context, tokenizer_t *tok) {
+  parse_get_tok_next(tok);
+
+  expr_node_t* conditional = parse_expression(context, tok);
+  if (conditional == NULL) return NULL;
+
+  expr_list_node_t* true_expr = parse_wrapped_expression_list(context, tok);
+  if (true_expr == NULL) return NULL;
+
+  expr_list_node_t* false_expr = NULL;
+  if (tok->current_tok == TOKEN_ELSE) {
+    parse_get_tok_next(tok);
+    false_expr = parse_wrapped_expression_list(context, tok);
+  }
+  return (expr_node_t*)ast_if_node_init(context, conditional, true_expr, false_expr);
+}
+
 expr_node_t* parse_block(context_t* context, tokenizer_t *tok) {
   symbol_table_t* parent_scope = context->symbol_table;
   symbol_table_t* current_scope = symbol_create_scope(context->symbol_table);
@@ -307,12 +380,11 @@ expr_node_t* parse_block(context_t* context, tokenizer_t *tok) {
   list_t* param_list = parse_param_list(context, tok);
   expr_node_t* ret = NULL;
   if (param_list != NULL) {
-    expr_list_node_t* function_body = parse_expression_list(context, tok);
-    if (function_body != NULL) {
-      if (parse_expect(tok, TOKEN_CLOSE_BRACE, "}")) {
-        parse_get_tok_next(tok);
-        ret = (expr_node_t*)ast_block_node_init(context, param_list, current_scope, function_body);
-      }
+    expr_list_node_t* function_body = parse_expression_list(context, tok, current_scope);
+    if (function_body == NULL) return NULL;
+    if (parse_expect(tok, TOKEN_CLOSE_BRACE, "}")) {
+      parse_get_tok_next(tok);
+      ret = (expr_node_t*)ast_block_node_init(context, param_list, function_body);
     }
   }
   context->symbol_table = parent_scope;
@@ -322,7 +394,8 @@ expr_node_t* parse_block(context_t* context, tokenizer_t *tok) {
 expr_node_t* parse_expression_secondary(context_t* context, tokenizer_t *tok) {
   if (tok->current_tok == TOKEN_OPEN_PAREN) {
     parse_get_tok_next(tok);
-    expr_node_t* inner = parse_expression_primary(context, tok, 0);
+    expr_node_t* inner = parse_expression(context, tok);
+    if (inner == NULL) return NULL;
     if (!parse_expect(tok, TOKEN_CLOSE_PAREN, "')'")) {
       return NULL;
     }
@@ -346,13 +419,15 @@ expr_node_t* parse_expression_secondary(context_t* context, tokenizer_t *tok) {
     expr_node_t* bool_node = (expr_node_t*)ast_const_bool_node_init(context, false);
     parse_get_tok_next(tok);
     return bool_node;
+  } else if (tok->current_tok == TOKEN_IF) {
+    return parse_if(context, tok);
   } else if (tok->current_tok == TOKEN_IDENT) {
     expr_node_t* ret = NULL;
     char* ident = strdup(tok->ident);
     parse_get_tok_next(tok);
     if (tok->current_tok == TOKEN_OPEN_PAREN) {
       ret = parse_fun_call(context, tok, ident);
-    } else if (tok->current_tok == TOKEN_EQUAL || tok->current_tok == TOKEN_COLON) {
+    } else if (tok->current_tok == TOKEN_ASSIGN || tok->current_tok == TOKEN_COLON) {
       ret = parse_expression_var_decl(context, tok, ident);
     } else {
       ret = (expr_node_t*)ast_ident_node_init(context, ident);
@@ -368,9 +443,7 @@ expr_node_t* parse_expression_secondary(context_t* context, tokenizer_t *tok) {
 
 expr_node_t* parse_expression_primary(context_t* context, tokenizer_t *tok, int prec) {
   expr_node_t* lhs = parse_expression_secondary(context, tok);
-  if (!lhs) {
-    return NULL;
-  }
+  if (lhs == NULL) return NULL;
   bin_op_t bin_op = parse_token_to_bin_op(tok->current_tok);
   int op_prec;
   if (bin_op != BIN_OP_INVALID) op_prec = parse_binary_precedence(bin_op);
@@ -378,28 +451,17 @@ expr_node_t* parse_expression_primary(context_t* context, tokenizer_t *tok, int 
     int new_prec = parse_is_left_associative(bin_op) ? op_prec + 1 : op_prec;
     parse_get_tok_next(tok);
     expr_node_t* rhs = parse_expression_primary(context, tok, new_prec);
-    if (!rhs) return NULL;
+    if (rhs == NULL) return NULL;
     lhs = (expr_node_t*)ast_bin_op_node_init(context, bin_op, lhs, rhs);
-    if (!lhs) return NULL;
+    if (lhs == NULL) return NULL;
     bin_op = parse_token_to_bin_op(tok->current_tok);
     if (bin_op != BIN_OP_INVALID) op_prec = parse_binary_precedence(bin_op);
   }
   return lhs;
 }
 
-/*
- * E --> Exp(0) 
- * Exp(p) --> P {B Exp(q)} 
- * P --> U Exp(q) | "(" E ")" | v
- * B --> "+" | "-"  | "*" |"/" | "^" | "||" | "&&" | "="
- * U --> "-"
- */
-expr_node_t* parse_expression(context_t* context, tokenizer_t *tok) {
-  return parse_expression_primary(context, tok, 0);
-}
-
-expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok) {
-  expr_list_node_t* expr_list = (expr_list_node_t*)ast_expr_list_node_init(context);
+expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok, symbol_table_t* scope) {
+  expr_list_node_t* expr_list = ast_expr_list_node_init(context, scope);
   printf("next tok '%d'\n", tok->current_tok);
   while (tok->current_tok != TOKEN_EOF) {
     if (tok->current_tok == TOKEN_CLOSE_BRACE) {
@@ -408,7 +470,7 @@ expr_list_node_t* parse_expression_list(context_t* context, tokenizer_t *tok) {
     }
     printf("next expr\n");
     expr_node_t* next_expr = parse_expression(context, tok);
-    if (!next_expr) return NULL;
+    if (next_expr == NULL) return NULL;
     ast_expr_list_node_add(context, expr_list, next_expr);
     expr_list->type = next_expr->type;
     if (tok->current_tok != TOKEN_SEMI && tok->current_tok != TOKEN_EOF) {
@@ -425,8 +487,8 @@ expr_node_t* parse_file(context_t* context, FILE *input) {
   tokenizer.input = input;
 
   parse_get_tok_next(&tokenizer);
-  expr_node_t* ast = (expr_node_t*)parse_expression_list(context, &tokenizer);
-  if (!ast) {
+  expr_node_t* ast = (expr_node_t*)parse_expression_list(context, &tokenizer, context->symbol_table);
+  if (ast == NULL) {
     fprintf(stderr, "No expression parsed\n");
     return NULL;
   }

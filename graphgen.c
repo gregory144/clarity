@@ -172,6 +172,28 @@ graph_vertex_t* graphgen_block(graph_t* graph, block_node_t* node) {
   return block_vertex;
 }
 
+graph_vertex_t* graphgen_if(graph_t* graph, if_node_t* node) {
+  const char* format_str = "%s (%s)";
+  char* type_str = type_to_string(node->type);
+  char* node_str = node_to_string(node->node_type);
+  char* label = malloc(sizeof(char) * (strlen(format_str) - 4 + strlen(type_str) + strlen(node_str) + 1));
+  sprintf(label, format_str, node_str, type_str);
+  free(node_str);
+
+  graph_vertex_t* if_vertex = graph_vertex_init(graph, label);
+  graph_vertex_t* cond_vertex = graphgen_expr(graph, node->conditional);
+  graph_edge_init(graph, if_vertex, cond_vertex);
+
+  graph_vertex_t* then_vertex = graphgen_expr_list(graph, node->true_expr);
+  graph_edge_init(graph, if_vertex, then_vertex);
+
+  if (node->false_expr) {
+    graph_vertex_t* else_vertex = graphgen_expr_list(graph, node->false_expr);
+    graph_edge_init(graph, if_vertex, else_vertex);
+  }
+  return if_vertex;
+}
+
 char* graphgen(context_t* context, expr_node_t* ast) {
   graph_t* graph = (graph_t*)malloc(sizeof(graph_t));
   graph->id_counter = 1;

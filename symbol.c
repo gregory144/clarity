@@ -19,6 +19,7 @@ void symbol_free(symbol_t* symbol) {
 }
 
 void symbol_table_free(symbol_table_t* symbol_table) {
+  printf("Freeing table: %p -> %p\n", symbol_table, symbol_table->symbols);
   list_visit(symbol_table->symbols, (void(*)(void*))symbol_free);
   list_free(symbol_table->symbols);
   free(symbol_table);

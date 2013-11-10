@@ -17,7 +17,7 @@
 #include "ast.h"
 #include "context.h"
 
-void execute(LLVMModuleRef mod) {
+int execute(LLVMModuleRef mod) {
   LLVMExecutionEngineRef engine;
   LLVMModuleProviderRef provider = LLVMCreateModuleProviderForExistingModule(mod);
   char *error = NULL;
@@ -47,19 +47,23 @@ void execute(LLVMModuleRef mod) {
   LLVMTypeRef ret_type = LLVMGetReturnType(LLVMGetElementType(LLVMTypeOf(main_func)));
   LLVMTypeKind ret_type_kind = LLVMGetTypeKind(ret_type);
 
+  int res = 0;
   fprintf(stderr, "\nResult: ");
   if (ret_type_kind == LLVMIntegerTypeKind) {
-    int64_t ret_int = LLVMGenericValueToInt(exec_res, true);
+    int64_t ret_int = LLVMGenericValueToInt(exec_res, false);
     fprintf(stderr, "%ld", ret_int);
+    res = ret_int;
   } else if (ret_type_kind == LLVMDoubleTypeKind) {
     double ret_double = LLVMGenericValueToFloat(LLVMDoubleType(), exec_res);
     fprintf(stderr, "%f", ret_double);
+    res = ret_double;
   }
   fprintf(stderr, "\n");
   LLVMDisposeGenericValue(exec_res);
 
   LLVMDisposePassManager(pass);
   LLVMDisposeExecutionEngine(engine);
+  return res;
 }
 
 int main(int argc, char const *argv[])
@@ -93,10 +97,10 @@ int main(int argc, char const *argv[])
   ast_expr_node_free(ast);
 
   // run it!
-  execute(mod);
+  int res = execute(mod);
 
   context_free(context);
 
-  return 0;
+  return res;
 }
 

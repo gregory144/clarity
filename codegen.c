@@ -30,12 +30,19 @@ LLVMValueRef codegen_expr(context_t* context, LLVMBuilderRef builder, expr_node_
 }
 
 LLVMValueRef codegen_expr_list(context_t* context, LLVMBuilderRef builder, expr_list_node_t* node) {
+  symbol_table_t* parent_scope = context->symbol_table;
+  context->symbol_table = node->scope;
+
   LLVMValueRef ret = NULL;
   list_item_t* iter = list_iter_init(node->expressions);
   for (; iter; iter = list_iter(iter)) {
     ret = codegen_expr(context, builder, iter->val);
+    if (ret == NULL) return NULL;
     LLVMDumpValue(ret);
   }
+
+  printf("Restoring parent scope: %p\n", parent_scope);
+  context->symbol_table = parent_scope;
   return ret;
 }
 
@@ -70,8 +77,6 @@ LLVMValueRef codegen_ident(context_t* context, LLVMBuilderRef builder, ident_nod
 
 LLVMValueRef codegen_fun_decl(context_t* context, LLVMBuilderRef builder, var_decl_node_t* node) {
   block_node_t* block_node = (block_node_t*)node->rhs;
-  symbol_table_t* parent_scope = context->symbol_table;
-  context->symbol_table = block_node->scope;
   LLVMValueRef function_expr = codegen_block(context, builder, block_node, node->name);
   if (function_expr) {
     /*LLVMTypeRef function_type = get_function_type(context, block_node);*/
@@ -92,7 +97,6 @@ LLVMValueRef codegen_fun_decl(context_t* context, LLVMBuilderRef builder, var_de
       symbol->value = function_expr;
     }
   }
-  context->symbol_table = parent_scope;
   return function_expr;
 }
 
@@ -107,7 +111,7 @@ LLVMValueRef codegen_var_decl(context_t* context, LLVMBuilderRef builder, var_de
   }
   LLVMValueRef alloca = LLVMBuildAlloca(builder, type, node->name);
   LLVMValueRef value = codegen_expr(context, builder, node->rhs);
-  if (!value) return NULL;
+  if (value == NULL) return NULL;
   LLVMBuildStore(builder, value, alloca); // yields {void}
   symbol_t* symbol = symbol_get(context->symbol_table, node->name);
   if (!symbol) {
@@ -121,7 +125,7 @@ LLVMValueRef codegen_var_decl(context_t* context, LLVMBuilderRef builder, var_de
 LLVMValueRef codegen_bin_op(context_t* context, LLVMBuilderRef builder, bin_op_node_t* node) {
   LLVMValueRef rhs = codegen_expr(context, builder, node->rhs);
   if (rhs == NULL) return NULL;
-  if (node->op == BIN_OP_EQ) {
+  if (node->op == BIN_OP_ASSIGN) {
     if (node->lhs->node_type != NODE_IDENT) {
       fprintf(stderr, "Left hand side of assignment must be an identifier\n");
       return NULL;
@@ -138,7 +142,7 @@ LLVMValueRef codegen_bin_op(context_t* context, LLVMBuilderRef builder, bin_op_n
   LLVMValueRef lhs = codegen_expr(context, builder, node->lhs);
   if (lhs == NULL) return NULL;
   // cast both to float if their types don't match
-  type_t* res_type;
+  type_t* numeric_res_type;
 
   type_t* type_int = type_get(context->type_sys, "Integer");
   type_t* type_float = type_get(context->type_sys, "Float");
@@ -147,28 +151,28 @@ LLVMValueRef codegen_bin_op(context_t* context, LLVMBuilderRef builder, bin_op_n
   bool rhs_is_int = type_equals(node->rhs->type, type_int);
   bool rhs_is_float = type_equals(node->rhs->type, type_float);
   if (lhs_is_int && rhs_is_float) {
-    res_type = type_float;
-    lhs = node->lhs->type->convert(context->type_sys, builder, lhs, res_type);
+    numeric_res_type = type_float;
+    lhs = node->lhs->type->convert(context->type_sys, builder, lhs, numeric_res_type);
     if (!lhs) {
-      fprintf(stderr, "Unable to convert %s to %s\n", node->lhs->type->name, res_type->name);
+      fprintf(stderr, "Unable to convert %s to %s\n", node->lhs->type->name, numeric_res_type->name);
       return NULL;
     }
   } else if (lhs_is_float && rhs_is_int) {
-    res_type = type_float;
-    rhs = node->rhs->type->convert(context->type_sys, builder, rhs, res_type);
+    numeric_res_type = type_float;
+    rhs = node->rhs->type->convert(context->type_sys, builder, rhs, numeric_res_type);
     if (!rhs) {
-      fprintf(stderr, "Unable to convert %s to %s\n", node->rhs->type->name, res_type->name);
+      fprintf(stderr, "Unable to convert %s to %s\n", node->rhs->type->name, numeric_res_type->name);
       return NULL;
     }
   } else if (lhs_is_float && rhs_is_float) {
-    res_type = type_float;
+    numeric_res_type = type_float;
   } else if (lhs_is_int && rhs_is_int) {
-    res_type = type_int;
+    numeric_res_type = type_int;
   } else {
     fprintf(stderr, "Unable to perform binary operation on non-numeric operands\n");
     return NULL;
   }
-  bool res_is_int = type_equals(res_type, type_int);
+  bool res_is_int = type_equals(numeric_res_type, type_int);
   switch(node->op) {
     case BIN_OP_PLUS:
       if (res_is_int) {
@@ -199,6 +203,36 @@ LLVMValueRef codegen_bin_op(context_t* context, LLVMBuilderRef builder, bin_op_n
         return LLVMBuildSRem(builder, lhs, rhs, "modop");
       } else {
         return LLVMBuildFRem(builder, lhs, rhs, "modop");
+      }
+    case BIN_OP_EQ:
+      if (res_is_int) {
+        return LLVMBuildICmp(builder, LLVMIntEQ, lhs, rhs, "eqop");
+      } else {
+        return LLVMBuildFCmp(builder, LLVMRealOEQ, lhs, rhs, "eqop");
+      }
+    case BIN_OP_GT:
+      if (res_is_int) {
+        return LLVMBuildICmp(builder, LLVMIntSGT, lhs, rhs, "gtop");
+      } else {
+        return LLVMBuildFCmp(builder, LLVMRealOGT, lhs, rhs, "gtop");
+      }
+    case BIN_OP_LT:
+      if (res_is_int) {
+        return LLVMBuildICmp(builder, LLVMIntSLT, lhs, rhs, "ltop");
+      } else {
+        return LLVMBuildFCmp(builder, LLVMRealOLT, lhs, rhs, "ltop");
+      }
+    case BIN_OP_GTE:
+      if (res_is_int) {
+        return LLVMBuildICmp(builder, LLVMIntSGE, lhs, rhs, "gteop");
+      } else {
+        return LLVMBuildFCmp(builder, LLVMRealOGE, lhs, rhs, "gteop");
+      }
+    case BIN_OP_LTE:
+      if (res_is_int) {
+        return LLVMBuildICmp(builder, LLVMIntSLE, lhs, rhs, "lteop");
+      } else {
+        return LLVMBuildFCmp(builder, LLVMRealOLE, lhs, rhs, "lteop");
       }
     default:
       fprintf(stderr, "Unknown binary operator\n");
@@ -271,7 +305,6 @@ LLVMTypeRef codegen_get_fun_type_ref(type_system_t* type_sys, block_node_t* bloc
 }
 
 LLVMValueRef codegen_block(context_t* context, LLVMBuilderRef builder, block_node_t* node, char* function_name) {
-  /*LLVMTypeRef* params = NULL;*/
   if (function_name == NULL) {
     function_name = malloc(sizeof(char) * 512);
     sprintf(function_name, "function%d", function_index);
@@ -291,7 +324,7 @@ LLVMValueRef codegen_block(context_t* context, LLVMBuilderRef builder, block_nod
     fun_param_node_t* param = iter->val;
     LLVMValueRef param_value = params[i];
     LLVMSetValueName(param_value, param->name);
-    symbol_t* symbol = symbol_get(context->symbol_table, param->name);
+    symbol_t* symbol = symbol_get(node->body->scope, param->name);
     if (!symbol) {
       fprintf(stderr, "Could not find symbol for parameter: %s\n", param->name);
       return NULL;
@@ -304,15 +337,59 @@ LLVMValueRef codegen_block(context_t* context, LLVMBuilderRef builder, block_nod
   LLVMPositionBuilderAtEnd(builder, entry);
 
   LLVMValueRef body = codegen_expr_list(context, builder, node->body);
+  if (!body) return NULL;
 
   LLVMBuildRet(builder, body);
 
   LLVMPositionBuilderAtEnd(builder, prev_block);
+
   return func;
 }
 
 LLVMValueRef codegen_fun_param(context_t* context, LLVMBuilderRef builder, fun_param_node_t* node) {
   return NULL;
+}
+
+LLVMValueRef codegen_if(context_t* context, LLVMBuilderRef builder, if_node_t* node) {
+  printf("codegen_if\n");
+  LLVMBasicBlockRef prev_block = LLVMGetInsertBlock(builder);
+  LLVMValueRef current_fun = LLVMGetBasicBlockParent(prev_block);
+
+  type_t* bool_type = type_get(context->type_sys, "Boolean");
+  LLVMValueRef cond_res = codegen_expr(context, builder, node->conditional);
+  if (!cond_res) return NULL;
+  cond_res = node->conditional->type->convert(context->type_sys, builder, cond_res, bool_type);
+  if (!cond_res) {
+    fprintf(stderr, "Could not convert %s to Boolean\n", node->conditional->type->name);
+    return NULL;
+  }
+
+  LLVMBasicBlockRef then_block = LLVMAppendBasicBlock(current_fun, "then");
+  LLVMBasicBlockRef else_block = LLVMAppendBasicBlock(current_fun, "else");
+  LLVMBasicBlockRef merge_block = LLVMAppendBasicBlock(current_fun, "merge");
+
+  LLVMValueRef br_res = LLVMBuildCondBr(builder, cond_res, then_block, else_block);
+
+  LLVMPositionBuilderAtEnd(builder, then_block);
+  LLVMValueRef then_res = codegen_expr_list(context, builder, node->true_expr);
+  if (!then_res) return NULL;
+  LLVMValueRef then_br = LLVMBuildBr(builder, merge_block);
+
+  LLVMPositionBuilderAtEnd(builder, else_block);
+  LLVMValueRef else_res = codegen_expr_list(context, builder, node->false_expr);
+  if (!else_res) return NULL;
+  LLVMValueRef else_br = LLVMBuildBr(builder, merge_block);
+
+  LLVMPositionBuilderAtEnd(builder, merge_block);
+
+  printf("phi node type: %s\n", type_to_string(node->type));
+  printf("then type: %s\n", type_to_string(node->true_expr->type));
+  printf("else type: %s\n", type_to_string(node->false_expr->type));
+  LLVMValueRef phi_node = LLVMBuildPhi(builder, node->type->get_ref(), "phi");
+  LLVMAddIncoming(phi_node, &then_res, &then_block, 1);
+  LLVMAddIncoming(phi_node, &else_res, &else_block, 1);
+
+  return phi_node;
 }
 
 LLVMModuleRef codegen(context_t* context, expr_node_t* ast) {

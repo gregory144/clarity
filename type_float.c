@@ -5,6 +5,9 @@ LLVMTypeRef type_float_get_ref() {
 }
 
 LLVMValueRef type_float_convert(type_system_t* type_sys, LLVMBuilderRef builder, LLVMValueRef val, type_t* to_type) {
+  if (type_name_is(to_type, "Float")) {
+    return val;
+  }
   if (type_name_is(to_type, "Integer")) {
     return LLVMBuildFPToSI(builder, val, to_type->get_ref(), "floattoint");
   }

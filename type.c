@@ -58,6 +58,7 @@ type_t* type_set(type_system_t* type_sys, bool primitive, char* name,
 }
 
 bool type_equals(type_t* type1, type_t* type2) {
+  // TODO - can we just do type1 == type2?
   return type_name_is(type1, type2->name);
 }
 
