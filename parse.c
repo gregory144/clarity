@@ -287,7 +287,7 @@ type_t* parse_type_decl(context_t* context, tokenizer_t* tok) {
     return NULL;
   }
   char* type_name = tok->ident;
-  // TODO check if function type
+  // TODO if function type - we don't know the return type, params etc
   type_t* type = type_get(context->type_sys, type_name);
   if (type == NULL) {
     fprintf(stderr, "Unable to identify type: %s\n", type_name);
